@@ -31,7 +31,7 @@ from config import (
     WINDOW_TITLE,
     GameState,
 )
-from game import Game
+from engine.game import Game
 
 
 class Renderer:
@@ -46,8 +46,8 @@ class Renderer:
         self._font_menu = pygame.font.Font(FONT_NAME, FONT_SIZE_MENU)
         self._font_body = pygame.font.Font(FONT_NAME, FONT_SIZE_BODY)
 
-    def draw(self, game: Game) -> None:
-        """Paint one full frame for the current game state."""
+    def draw(self, game: Game, alpha: float = 1.0) -> None:
+        """Paint one full frame; `alpha` interpolates the snake between ticks."""
         if game.state is GameState.MENU:
             self._draw_menu(game)
         elif game.state is GameState.INFO:
@@ -58,7 +58,7 @@ class Renderer:
             self._draw_walls(game)
             self._draw_portals(game)
             self._draw_food(game)
-            self._draw_snake(game)
+            self._draw_snake(game, alpha)
             self._draw_hud(game)
             self._draw_overlay(game)
         pygame.display.flip()
@@ -155,11 +155,21 @@ class Renderer:
             self.surface, color, self._cell_rect(game.food.position).inflate(-4, -4)
         )
 
-    def _draw_snake(self, game: Game) -> None:
-        """Draw the snake, head highlighted."""
-        for index, cell in enumerate(game.snake.body):
+    def _cell_rect_f(self, fx: float, fy: float) -> pygame.Rect:
+        """Pixel rectangle for a fractional grid position (for interpolation)."""
+        return pygame.Rect(
+            round(fx * CELL_SIZE),
+            round(HUD_HEIGHT + fy * CELL_SIZE),
+            CELL_SIZE,
+            CELL_SIZE,
+        )
+
+    def _draw_snake(self, game: Game, alpha: float = 1.0) -> None:
+        """Draw the snake at its interpolated position, head highlighted."""
+        positions = game.snake.interpolated_positions(alpha, game.grid_size)
+        for index, (fx, fy) in enumerate(positions):
             color = COLOR_SNAKE_HEAD if index == 0 else COLOR_SNAKE_BODY
-            pygame.draw.rect(self.surface, color, self._cell_rect(cell).inflate(-2, -2))
+            pygame.draw.rect(self.surface, color, self._cell_rect_f(fx, fy).inflate(-2, -2))
 
     def _draw_hud(self, game: Game) -> None:
         """Draw the score bar across the top."""

@@ -5,6 +5,8 @@ import pygame
 from audio import SoundManager
 from config import (
     FPS,
+    MAX_STEPS_PER_FRAME,
+    RENDER_FPS,
     WINDOW_HEIGHT,
     WINDOW_TITLE,
     WINDOW_WIDTH,
@@ -13,7 +15,7 @@ from config import (
     Intent,
     SoundEvent,
 )
-from game import Game
+from engine.game import Game
 from input_handler import InputHandler
 from renderer import Renderer
 
@@ -86,15 +88,29 @@ def main() -> None:
     audio = SoundManager()
     audio.start_music()
 
+    step = 1.0 / FPS  # seconds between logic ticks
+    accumulator = 0.0
+
     running = True
     while running:
+        dt = clock.tick(RENDER_FPS) / 1000.0
         for intent in handler.process(pygame.event.get()):
             if not _apply_intent(intent, game, audio):
                 running = False
-        game.update()
-        audio.play_events(game.events)
-        renderer.draw(game)
-        clock.tick(FPS)
+
+        # Advance logic in fixed steps, decoupled from the render rate.
+        accumulator += dt
+        steps = 0
+        while accumulator >= step and steps < MAX_STEPS_PER_FRAME:
+            game.update()
+            audio.play_events(game.events)
+            accumulator -= step
+            steps += 1
+        accumulator = min(accumulator, step)  # drop any backlog past the clamp
+
+        # Fraction toward the next tick, used to interpolate the snake.
+        alpha = accumulator / step if game.state is GameState.RUNNING else 1.0
+        renderer.draw(game, alpha)
 
     pygame.quit()
 

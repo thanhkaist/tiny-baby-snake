@@ -32,6 +32,8 @@ class Snake:
         self.direction = direction
         self._pending_direction = direction
         self._pending_growth = 0
+        # Snapshot of the body before the last move, for render interpolation.
+        self.prev_body: list[Position] = list(self.body)
 
     @property
     def head(self) -> Position:
@@ -63,6 +65,7 @@ class Snake:
 
     def move(self, grid_size: tuple[int, int] = (GRID_WIDTH, GRID_HEIGHT)) -> None:
         """Advance one cell, wrapping around the edges of the grid."""
+        self.prev_body = list(self.body)  # snapshot for interpolation
         self.direction = self._pending_direction
         width, height = grid_size
         dx, dy = self.direction.value
@@ -73,6 +76,27 @@ class Snake:
             self._pending_growth -= 1
         else:
             self.body.pop()
+
+    def interpolated_positions(
+        self,
+        alpha: float,
+        grid_size: tuple[int, int] = (GRID_WIDTH, GRID_HEIGHT),
+    ) -> list[tuple[float, float]]:
+        """Segment centre positions eased `alpha` (0..1) from prev to current.
+
+        Each segment slides from its own previous cell to its current one. When
+        a segment jumped more than one cell (an edge wrap or a portal), it snaps
+        to the current cell instead of streaking across the board.
+        """
+        width, height = grid_size
+        positions: list[tuple[float, float]] = []
+        for i, (cx, cy) in enumerate(self.body):
+            px, py = self.prev_body[i] if i < len(self.prev_body) else (cx, cy)
+            if abs(cx - px) > 1 or abs(cy - py) > 1:
+                positions.append((float(cx), float(cy)))  # wrapped/teleported: snap
+            else:
+                positions.append((px + (cx - px) * alpha, py + (cy - py) * alpha))
+        return positions
 
     def teleport_head(self, dest: Position) -> None:
         """Relocate the head to `dest`, as when entering a portal.

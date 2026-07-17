@@ -3,7 +3,7 @@
 import random
 
 from config import MENU_OPTIONS, GameState
-from game import Game
+from engine.game import Game
 
 
 def _game(tmp_path) -> Game:

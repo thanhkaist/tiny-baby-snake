@@ -2,7 +2,7 @@
 
 import random
 
-from food import Food
+from engine.food import Food
 
 
 def test_never_spawns_on_snake() -> None:

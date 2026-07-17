@@ -15,9 +15,9 @@ import pytest  # noqa: E402
 
 from audio import SoundManager  # noqa: E402
 from config import SOUND_DIR, Direction, GameState, SoundEvent  # noqa: E402
-from game import Game  # noqa: E402
-from levels import LEVELS, Level, build_portal_map  # noqa: E402
-from snake import Snake  # noqa: E402
+from engine.game import Game  # noqa: E402
+from engine.levels import LEVELS, Level, build_portal_map  # noqa: E402
+from engine.snake import Snake  # noqa: E402
 
 
 def _game(tmp_path, seed: int = 0) -> Game:

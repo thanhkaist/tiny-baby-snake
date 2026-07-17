@@ -11,8 +11,11 @@ WINDOW_WIDTH = GRID_WIDTH * CELL_SIZE
 WINDOW_HEIGHT = GRID_HEIGHT * CELL_SIZE + 48  # extra band for the score bar
 HUD_HEIGHT = 48
 
-# Timing — the snake advances one cell per frame, so this is also its speed.
-FPS = 10
+# Timing. Logic advances at a fixed rate (the snake's speed in cells/second);
+# rendering runs faster and interpolates between logic ticks for smoothness.
+FPS = 10  # base logic ticks per second
+RENDER_FPS = 60
+MAX_STEPS_PER_FRAME = 5  # clamp so a stall can't spiral into a burst of updates
 
 # Snake
 INITIAL_SNAKE_LENGTH = 3

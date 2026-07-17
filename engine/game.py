@@ -17,9 +17,9 @@ from config import (
     GameState,
     SoundEvent,
 )
-from food import Food
-from levels import LEVELS, build_portal_map
-from snake import Snake
+from engine.food import Food
+from engine.levels import LEVELS, build_portal_map
+from engine.snake import Snake
 from storage import load_high_score, save_high_score
 
 

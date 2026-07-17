@@ -1,7 +1,26 @@
 """Tests for the Snake entity."""
 
 from config import Direction
-from snake import Snake
+from engine.snake import Snake
+
+
+def test_interpolation_eases_between_cells() -> None:
+    snake = Snake(start=(5, 5), direction=Direction.RIGHT, length=3)
+    snake.move((20, 20))  # body -> (6,5),(5,5),(4,5); prev -> (5,5),(4,5),(3,5)
+    at_zero = snake.interpolated_positions(0.0, (20, 20))
+    at_half = snake.interpolated_positions(0.5, (20, 20))
+    at_one = snake.interpolated_positions(1.0, (20, 20))
+    assert at_zero == [(5.0, 5.0), (4.0, 5.0), (3.0, 5.0)]  # previous cells
+    assert at_half == [(5.5, 5.0), (4.5, 5.0), (3.5, 5.0)]  # halfway
+    assert at_one == [(6.0, 5.0), (5.0, 5.0), (4.0, 5.0)]  # current cells
+
+
+def test_interpolation_snaps_across_a_wrap() -> None:
+    snake = Snake(start=(0, 5), direction=Direction.LEFT, length=1)
+    snake.move((10, 10))  # wraps to (9,5)
+    # Any alpha snaps to the current cell rather than streaking across the board.
+    assert snake.interpolated_positions(0.3, (10, 10)) == [(9.0, 5.0)]
+    assert snake.interpolated_positions(1.0, (10, 10)) == [(9.0, 5.0)]
 
 
 def test_moves_in_each_direction() -> None:

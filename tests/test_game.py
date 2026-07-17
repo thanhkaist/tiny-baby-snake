@@ -3,8 +3,8 @@
 import random
 
 from config import Direction, GameState
-from game import Game
-from snake import Snake
+from engine.game import Game
+from engine.snake import Snake
 
 
 def _game(tmp_path, seed: int = 0) -> Game:

@@ -5,9 +5,9 @@ import random
 import pytest
 
 from config import GRID_HEIGHT, GRID_WIDTH, Direction, GameState
-from game import Game
-from levels import LEVELS, Level, build_portal_map
-from snake import Snake
+from engine.game import Game
+from engine.levels import LEVELS, Level, build_portal_map
+from engine.snake import Snake
 
 
 def _game(tmp_path, seed: int = 0) -> Game:
