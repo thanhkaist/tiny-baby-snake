@@ -24,6 +24,13 @@ INITIAL_SNAKE_LENGTH = 3
 POINTS_PER_FOOD = 10
 HIGH_SCORE_FILE = "highscore.txt"
 
+# Power-ups & bonus food (endless modes). Timings are in logic ticks.
+BONUS_EVERY = 4  # spawn a bonus after this many normal foods
+BONUS_LIFETIME = 50  # ticks a bonus stays before vanishing
+BONUS_POINTS = 50
+POWERUP_SPAWN_TICKS = 90  # ticks between power-up spawn attempts
+POWERUP_LIFETIME = 75  # ticks a power-up stays on the board
+
 # Colors (R, G, B)
 COLOR_BACKGROUND = (18, 20, 28)
 COLOR_GRID = (28, 31, 42)
@@ -98,6 +105,8 @@ class SoundEvent(Enum):
     MENU_MOVE = "menu_move"
     SELECT = "select"
     EAT = "eat"
+    BONUS = "bonus"
+    POWERUP = "powerup"
     TELEPORT = "teleport"
     LEVEL_CLEARED = "level_cleared"
     GAME_OVER = "game_over"

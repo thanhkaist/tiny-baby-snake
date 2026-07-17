@@ -10,6 +10,7 @@ import math
 import pygame
 
 from config import (
+    BONUS_POINTS,
     CELL_SIZE,
     COLOR_PORTALS,
     FONT_NAME,
@@ -30,6 +31,7 @@ from config import (
 )
 from engine.game import Game
 from engine.modes import MODES
+from engine.powerups import SPECS
 from fx import draw
 from fx.camera import Camera
 from fx.particles import ParticleSystem
@@ -81,6 +83,15 @@ class Renderer:
                 self.particles.emit_burst(*head, self.skin.light, count=34, speed=300)
                 self.camera.shake(0.75)
                 self.camera.flash((255, 90, 90), 0.35)
+            elif event is SoundEvent.BONUS:
+                self.particles.emit_burst(*head, self.theme.food_bonus, count=26, speed=280)
+                self._popups.append(
+                    {"text": f"+{BONUS_POINTS}", "x": head[0], "y": head[1] - CELL_SIZE,
+                     "life": 1.0, "max": 1.0, "color": self.theme.food_bonus})
+                self.camera.shake(0.32)
+            elif event is SoundEvent.POWERUP:
+                self.particles.emit_burst(*head, (255, 255, 255), count=26, speed=260)
+                self.camera.shake(0.26)
             elif event in (SoundEvent.LEVEL_CLEARED, SoundEvent.WIN):
                 cx = self.board_rect.centerx
                 cy = self.board_rect.centery
@@ -123,8 +134,11 @@ class Renderer:
             self._draw_walls(game)
             self._draw_portals(game)
             self._draw_food(game)
+            self._draw_bonus(game)
+            self._draw_powerup(game)
             self._draw_snake(game, alpha)
             self._draw_hud(game)
+            self._draw_effects(game)
             self.particles.draw(self.canvas)
             self._draw_popups()
             self._draw_overlay(game)
@@ -189,6 +203,39 @@ class Renderer:
             self.canvas, self._cell_rect(game.food.position).center,
             int(CELL_SIZE * 0.4), self.theme, self._now(),
         )
+
+    def _draw_bonus(self, game: Game) -> None:
+        if game.bonus_pos is None:
+            return
+        draw.food(
+            self.canvas, self._cell_rect(game.bonus_pos).center,
+            int(CELL_SIZE * 0.42), self.theme, self._now(), bonus=True,
+        )
+
+    def _draw_powerup(self, game: Game) -> None:
+        if game.powerup_pos is None or game.powerup_kind is None:
+            return
+        spec = SPECS[game.powerup_kind]
+        rect = self._cell_rect(game.powerup_pos).inflate(-3, -3)
+        pygame.draw.rect(self.canvas, self.theme.text_light, rect.inflate(4, 4), border_radius=9)
+        pygame.draw.rect(self.canvas, spec.color, rect, border_radius=8)
+        letter = draw.outline_text(
+            self._font_hud, spec.letter, self.theme.text_light, self.theme.text, 2)
+        self.canvas.blit(letter, letter.get_rect(center=rect.center))
+
+    def _draw_effects(self, game: Game) -> None:
+        """Small badges for active timed power-ups, bottom-left of the board."""
+        x = 12
+        y = self.canvas.get_height() - 32
+        for kind in game.effects:
+            spec = SPECS[kind]
+            badge = pygame.Rect(x, y, 26, 26)
+            pygame.draw.rect(self.canvas, self.theme.text_light, badge.inflate(4, 4),
+                             border_radius=8)
+            pygame.draw.rect(self.canvas, spec.color, badge, border_radius=7)
+            letter = self._font_subtitle.render(spec.letter, True, self.theme.text_light)
+            self.canvas.blit(letter, letter.get_rect(center=badge.center))
+            x += 34
 
     def _draw_snake(self, game: Game, alpha: float) -> None:
         positions = game.snake.interpolated_positions(alpha, game.grid_size)

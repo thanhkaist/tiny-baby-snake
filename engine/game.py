@@ -7,12 +7,17 @@ headless test process with no display.
 import random
 
 from config import (
+    BONUS_EVERY,
+    BONUS_LIFETIME,
+    BONUS_POINTS,
     GRID_HEIGHT,
     GRID_WIDTH,
     HIGH_SCORE_FILE,
     MENU_OPTIONS,
     MENU_START,
     POINTS_PER_FOOD,
+    POWERUP_LIFETIME,
+    POWERUP_SPAWN_TICKS,
     Direction,
     GameState,
     SoundEvent,
@@ -20,8 +25,11 @@ from config import (
 from engine.food import Food
 from engine.levels import LEVELS, Level, build_portal_map
 from engine.modes import DEFAULT_MODE, MODES, Mode
+from engine.powerups import SHRINK_AMOUNT, SPECS, PowerUpKind
 from engine.snake import Snake
 from storage import load_high_score, save_high_score
+
+Position = tuple[int, int]
 
 
 class Game:
@@ -66,7 +74,7 @@ class Game:
         self._apply_level(LEVELS[index])
 
     def _apply_level(self, level: Level) -> None:
-        """Place the snake, portals, and food for `level`."""
+        """Place the snake, portals, food, and reset power-up state."""
         self.level = level
         self.portal_map = build_portal_map(level)
         self.snake = Snake(start=level.start, direction=level.start_dir)
@@ -74,12 +82,50 @@ class Game:
         self.food_timer = 0
         if not self.mode.uses_levels:
             self.level_index = 0
+        # Power-ups & bonus food (endless modes).
+        self.foods_eaten = 0
+        self.bonus_pos: Position | None = None
+        self.bonus_timer = 0
+        self.powerup_kind: PowerUpKind | None = None
+        self.powerup_pos: Position | None = None
+        self.powerup_timer = 0
+        self.powerup_spawn_counter = 0
+        self.effects: dict[PowerUpKind, int] = {}
         self._respawn_food()
 
+    def _occupied(self, include_food: bool = True) -> set[Position]:
+        """All cells nothing new should spawn on."""
+        cells = self.snake.occupied_cells() | self.level.blocked_cells()
+        if include_food and self.food.position is not None:
+            cells.add(self.food.position)
+        if self.bonus_pos is not None:
+            cells.add(self.bonus_pos)
+        if self.powerup_pos is not None:
+            cells.add(self.powerup_pos)
+        return cells
+
     def _respawn_food(self) -> bool:
-        """Place food on a free cell, avoiding the snake, walls, and portals."""
-        occupied = self.snake.occupied_cells() | self.level.blocked_cells()
-        return self.food.respawn(occupied, self.grid_size, self._rng)
+        """Place food on a free cell, avoiding everything else on the board."""
+        return self.food.respawn(self._occupied(include_food=False), self.grid_size, self._rng)
+
+    def _random_free_cell(self) -> Position | None:
+        """A uniformly random empty cell, or None if the board is full."""
+        blocked = self._occupied()
+        width, height = self.grid_size
+        free = [
+            (x, y) for x in range(width) for y in range(height) if (x, y) not in blocked
+        ]
+        return self._rng.choice(free) if free else None
+
+    @property
+    def ghost_active(self) -> bool:
+        """Whether the Ghost power-up is currently suppressing collisions."""
+        return PowerUpKind.GHOST in self.effects
+
+    @property
+    def score_multiplier(self) -> int:
+        """Points multiplier from the Double power-up."""
+        return 2 if PowerUpKind.DOUBLE in self.effects else 1
 
     @property
     def is_final_level(self) -> bool:
@@ -88,11 +134,14 @@ class Game:
 
     @property
     def speed(self) -> float:
-        """Current logic ticks per second, ramping with length if the mode asks."""
+        """Logic ticks per second: ramps with length, halved while slowed."""
         base = self.mode.base_speed
         if self.mode.speed_ramp:
             base += (self.snake.length - 3) * 0.35
-        return max(4.0, min(self.mode.max_speed, base))
+        base = max(4.0, min(self.mode.max_speed, base))
+        if PowerUpKind.SLOW in self.effects:
+            base *= 0.5
+        return base
 
     @property
     def time_left(self) -> float | None:
@@ -174,6 +223,7 @@ class Game:
             self._record_high_score()
             return
 
+        self._tick_effects()
         self.snake.move(self.grid_size)
 
         # A portal whisks the head to its paired hole before any collision test.
@@ -182,13 +232,14 @@ class Game:
             self.snake.teleport_head(partner)
             self.events.append(SoundEvent.TELEPORT)
 
-        hit_wall = self.mode.walls_kill and self.snake.head in self.level.walls
-        hit_self = self.mode.self_kill and self.snake.collides_with_self()
-        if hit_wall or hit_self:
-            self.state = GameState.GAME_OVER
-            self.events.append(SoundEvent.GAME_OVER)
-            self._record_high_score()
-            return
+        if not self.ghost_active:
+            hit_wall = self.mode.walls_kill and self.snake.head in self.level.walls
+            hit_self = self.mode.self_kill and self.snake.collides_with_self()
+            if hit_wall or hit_self:
+                self.state = GameState.GAME_OVER
+                self.events.append(SoundEvent.GAME_OVER)
+                self._record_high_score()
+                return
 
         if self.snake.head == self.food.position:
             self._eat_food()
@@ -199,11 +250,92 @@ class Game:
                 self._respawn_food()
                 self.food_timer = 0
 
+        if self.mode.powerups:
+            self._apply_magnet()
+            self._update_bonus()
+            self._update_powerup()
+
+    def _tick_effects(self) -> None:
+        """Count down active timed effects and drop the expired ones."""
+        for kind in list(self.effects):
+            self.effects[kind] -= 1
+            if self.effects[kind] <= 0:
+                del self.effects[kind]
+
+    def _apply_magnet(self) -> None:
+        """While Magnet is active, tug the food one cell toward the head."""
+        if PowerUpKind.MAGNET not in self.effects or self.food.position is None:
+            return
+        fx, fy = self.food.position
+        hx, hy = self.snake.head
+        step_x = (hx > fx) - (hx < fx)
+        step_y = (hy > fy) - (hy < fy)
+        blocked = self._occupied(include_food=False)
+        if abs(hx - fx) >= abs(hy - fy) and step_x:
+            target = (fx + step_x, fy)
+        elif step_y:
+            target = (fx, fy + step_y)
+        else:
+            return
+        if target not in blocked:
+            self.food.position = target
+
+    def _update_bonus(self) -> None:
+        """Handle collecting or expiring the bonus food."""
+        if self.bonus_pos is None:
+            return
+        if self.snake.head == self.bonus_pos:
+            self.snake.grow()
+            self.score += BONUS_POINTS * self.score_multiplier
+            self.events.append(SoundEvent.BONUS)
+            self.bonus_pos = None
+            return
+        self.bonus_timer -= 1
+        if self.bonus_timer <= 0:
+            self.bonus_pos = None
+
+    def _update_powerup(self) -> None:
+        """Spawn, collect, or expire the on-board power-up."""
+        if self.powerup_pos is not None and self.snake.head == self.powerup_pos:
+            self._activate_powerup(self.powerup_kind)
+            self.powerup_pos = None
+            self.powerup_kind = None
+            return
+
+        if self.powerup_pos is not None:
+            self.powerup_timer -= 1
+            if self.powerup_timer <= 0:
+                self.powerup_pos = None
+                self.powerup_kind = None
+            return
+
+        # None on board: count toward the next spawn.
+        self.powerup_spawn_counter += 1
+        if self.powerup_spawn_counter >= POWERUP_SPAWN_TICKS:
+            self.powerup_spawn_counter = 0
+            cell = self._random_free_cell()
+            if cell is not None:
+                self.powerup_kind = self._rng.choice(list(PowerUpKind))
+                self.powerup_pos = cell
+                self.powerup_timer = POWERUP_LIFETIME
+
+    def _activate_powerup(self, kind: PowerUpKind) -> None:
+        """Apply a picked-up power-up's effect."""
+        self.events.append(SoundEvent.POWERUP)
+        spec = SPECS[kind]
+        if kind is PowerUpKind.SHRINK:
+            keep = max(2, self.snake.length - SHRINK_AMOUNT)
+            self.snake.body = self.snake.body[:keep]
+            self.snake.prev_body = self.snake.prev_body[:keep]
+        elif spec.timed:
+            self.effects[kind] = spec.duration
+
     def _eat_food(self) -> None:
         """Grow, score, and either clear the level or lay out the next food."""
         self.snake.grow()
-        self.score += POINTS_PER_FOOD
+        self.score += POINTS_PER_FOOD * self.score_multiplier
         self.food_timer = 0
+        self.foods_eaten += 1
         self.events.append(SoundEvent.EAT)
 
         # Adventure clears the level once its target score is reached.
@@ -216,6 +348,13 @@ class Game:
                 self.state = GameState.LEVEL_CLEARED
                 self.events.append(SoundEvent.LEVEL_CLEARED)
             return
+
+        # In power-up modes, every few foods drops a timed bonus.
+        if self.mode.powerups and self.bonus_pos is None and self.foods_eaten % BONUS_EVERY == 0:
+            cell = self._random_free_cell()
+            if cell is not None:
+                self.bonus_pos = cell
+                self.bonus_timer = BONUS_LIFETIME
 
         if not self._respawn_food():
             # Board full: a win in every mode.

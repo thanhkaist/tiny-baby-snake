@@ -42,6 +42,7 @@ class Mode:
     speed_ramp: bool = False  # speed up as the snake grows
     base_speed: float = 10.0  # logic ticks per second
     max_speed: float = 20.0
+    powerups: bool = False  # spawn bonus food and power-ups
 
 
 ADVENTURE = Mode(
@@ -50,19 +51,19 @@ ADVENTURE = Mode(
 )
 CLASSIC = Mode(
     "classic", "Classic", "Endless. Gets faster as you grow.",
-    board=OPEN_BOARD, speed_ramp=True, base_speed=9.0,
+    board=OPEN_BOARD, speed_ramp=True, base_speed=9.0, powerups=True,
 )
 TIME_ATTACK = Mode(
     "time_attack", "Time Attack", "Score as much as you can in 60 seconds.",
-    board=OPEN_BOARD, time_limit=60.0, base_speed=11.0,
+    board=OPEN_BOARD, time_limit=60.0, base_speed=11.0, powerups=True,
 )
 ZEN = Mode(
     "zen", "Zen", "Relax — no walls, no dying.",
-    board=OPEN_BOARD, walls_kill=False, self_kill=False, base_speed=7.0,
+    board=OPEN_BOARD, walls_kill=False, self_kill=False, base_speed=7.0, powerups=True,
 )
 MAZE = Mode(
     "maze", "Maze", "Thread the needle through a maze.",
-    board=MAZE_BOARD, base_speed=10.0,
+    board=MAZE_BOARD, base_speed=10.0, powerups=True,
 )
 
 MODES: tuple[Mode, ...] = (ADVENTURE, CLASSIC, TIME_ATTACK, ZEN, MAZE)
