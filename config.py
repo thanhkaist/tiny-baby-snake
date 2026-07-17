@@ -72,6 +72,7 @@ class GameState(Enum):
     """Which phase of play the game is currently in."""
 
     MENU = "menu"
+    MODE_SELECT = "mode_select"
     INFO = "info"
     RUNNING = "running"
     PAUSED = "paused"

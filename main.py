@@ -4,7 +4,6 @@ import pygame
 
 from audio import SoundManager
 from config import (
-    FPS,
     MAX_STEPS_PER_FRAME,
     RENDER_FPS,
     WINDOW_HEIGHT,
@@ -31,7 +30,7 @@ def _apply_intent(intent: tuple, game: Game, audio: SoundManager) -> bool:
     action, payload = intent
 
     if action is Intent.QUIT:
-        if game.state is GameState.INFO:
+        if game.state in (GameState.INFO, GameState.MODE_SELECT):
             game.back_to_menu()
             return True
         return False
@@ -44,12 +43,22 @@ def _apply_intent(intent: tuple, game: Game, audio: SoundManager) -> bool:
             elif payload is Direction.DOWN:
                 game.menu_move(1)
                 audio.play(SoundEvent.MENU_MOVE)
+        elif game.state is GameState.MODE_SELECT:
+            if payload is Direction.UP:
+                game.mode_menu_move(-1)
+                audio.play(SoundEvent.MENU_MOVE)
+            elif payload is Direction.DOWN:
+                game.mode_menu_move(1)
+                audio.play(SoundEvent.MENU_MOVE)
         else:
             game.set_direction(payload)
 
     elif action is Intent.CONFIRM:
         if game.state is GameState.MENU:
             game.menu_select()
+            audio.play(SoundEvent.SELECT)
+        elif game.state is GameState.MODE_SELECT:
+            game.mode_menu_select()
             audio.play(SoundEvent.SELECT)
         elif game.state is GameState.INFO:
             game.back_to_menu()
@@ -88,7 +97,6 @@ def main() -> None:
     audio = SoundManager()
     audio.start_music()
 
-    step = 1.0 / FPS  # seconds between logic ticks
     accumulator = 0.0
 
     running = True
@@ -98,7 +106,9 @@ def main() -> None:
             if not _apply_intent(intent, game, audio):
                 running = False
 
-        # Advance logic in fixed steps, decoupled from the render rate.
+        # Advance logic in fixed steps, decoupled from the render rate. The
+        # step shrinks as the mode's speed rises (e.g. Classic speeding up).
+        step = 1.0 / game.speed
         accumulator += dt
         steps = 0
         while accumulator >= step and steps < MAX_STEPS_PER_FRAME:

@@ -26,10 +26,13 @@ def test_menu_navigation_is_clamped(tmp_path) -> None:
     assert game.menu_index == len(MENU_OPTIONS) - 1
 
 
-def test_selecting_start_begins_play(tmp_path) -> None:
+def test_selecting_start_opens_mode_select(tmp_path) -> None:
     game = _game(tmp_path)
     game.menu_index = 0  # "Start Game"
     game.menu_select()
+    assert game.state is GameState.MODE_SELECT
+    # Choosing a mode begins play.
+    game.mode_menu_select()
     assert game.state is GameState.RUNNING
     assert game.score == 0
 

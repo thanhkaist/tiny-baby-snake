@@ -29,6 +29,7 @@ from config import (
     SoundEvent,
 )
 from engine.game import Game
+from engine.modes import MODES
 from fx import draw
 from fx.camera import Camera
 from fx.particles import ParticleSystem
@@ -113,6 +114,8 @@ class Renderer:
         draw.vertical_gradient(self.canvas, self.theme.bg_top, self.theme.bg_bottom)
         if game.state is GameState.MENU:
             self._draw_menu(game)
+        elif game.state is GameState.MODE_SELECT:
+            self._draw_mode_select(game)
         elif game.state is GameState.INFO:
             self._draw_info()
         else:
@@ -213,11 +216,20 @@ class Renderer:
     def _draw_hud(self, game: Game) -> None:
         score = self._pill(f"Score {game.score}", self._font_hud)
         self.canvas.blit(score, (10, (HUD_HEIGHT - score.get_height()) // 2))
-        level = self._pill(f"Lv {game.level_index + 1}  {game.level.name}", self._font_hud)
+
+        # Centre pill: the Adventure level, or a timer, or the mode name.
+        if game.mode.uses_levels:
+            center_text = f"Lv {game.level_index + 1}  {game.level.name}"
+        elif game.time_left is not None:
+            center_text = f"Time {int(game.time_left)}s"
+        else:
+            center_text = game.mode.name
+        center = self._pill(center_text, self._font_hud)
         self.canvas.blit(
-            level, ((self.canvas.get_width() - level.get_width()) // 2,
-                    (HUD_HEIGHT - level.get_height()) // 2)
+            center, ((self.canvas.get_width() - center.get_width()) // 2,
+                     (HUD_HEIGHT - center.get_height()) // 2)
         )
+
         best = self._pill(f"Best {game.high_score}", self._font_hud)
         self.canvas.blit(
             best, (self.canvas.get_width() - best.get_width() - 10,
@@ -278,6 +290,37 @@ class Renderer:
             self._font_subtitle, "Arrows to choose · Enter to select · Esc to quit",
             self.theme.text, self.theme.text_light, 2)
         self._blit_centered(hint, self.canvas.get_height() - 40)
+
+    def _draw_mode_select(self, game: Game) -> None:
+        title = draw.outline_text(
+            self._font_title, "Choose a Mode", self.skin.light, self.skin.outline, 3)
+        self._blit_centered(title, 74)
+
+        top = 150
+        row_h = 78
+        panel_w = self.canvas.get_width() - 80
+        for index, mode in enumerate(MODES):
+            selected = index == game.mode_index
+            y = top + index * row_h
+            panel = pygame.Rect((self.canvas.get_width() - panel_w) // 2, y, panel_w, row_h - 14)
+            fill = self.theme.accent if selected else self.theme.ui_panel
+            draw.rounded_shadow_panel(
+                self.canvas, panel, fill, self.theme.ui_panel_shadow, radius=16
+            )
+            name = draw.outline_text(
+                self._font_menu, mode.name,
+                self.theme.text_light if selected else self.theme.text,
+                self.theme.text if selected else self.theme.text_light, 2,
+            )
+            self.canvas.blit(name, (panel.x + 20, panel.y + 8))
+            tag = self._font_subtitle.render(mode.tagline, True,
+                                             self.theme.text_light if selected else self.theme.text_dim)
+            self.canvas.blit(tag, (panel.x + 20, panel.y + 40))
+
+        hint = draw.outline_text(
+            self._font_subtitle, "Arrows to choose · Enter to start · Esc to go back",
+            self.theme.text, self.theme.text_light, 2)
+        self._blit_centered(hint, self.canvas.get_height() - 30)
 
     def _draw_info(self) -> None:
         title = draw.outline_text(
