@@ -129,6 +129,11 @@ def main() -> None:
         renderer.apply_profile(game.profile)
         audio.apply_settings(game.profile.settings)
 
+        # Livelier music during play; calmer track in the menus.
+        gameplay = game.state in (
+            GameState.RUNNING, GameState.PAUSED, GameState.LEVEL_CLEARED)
+        audio.play_music("game_music" if gameplay else "menu_music")
+
         # Advance logic in fixed steps, decoupled from the render rate. The
         # step shrinks as the mode's speed rises (e.g. Classic speeding up).
         step = 1.0 / game.speed

@@ -20,7 +20,8 @@ class SoundManager:
         self.available = False
         self.muted = False
         self._sounds: dict[SoundEvent, pygame.mixer.Sound] = {}
-        self._music_path: str | None = None
+        self._music_tracks: dict[str, str] = {}
+        self._current_music: str | None = None
 
         if not enabled:
             return
@@ -39,9 +40,10 @@ class SoundManager:
             except (pygame.error, FileNotFoundError):
                 pass
 
-        music = os.path.join(sound_dir, "music.wav")
-        if os.path.exists(music):
-            self._music_path = music
+        for track in ("menu_music", "game_music"):
+            path = os.path.join(sound_dir, f"{track}.wav")
+            if os.path.exists(path):
+                self._music_tracks[track] = path
 
     def apply_settings(self, settings) -> None:
         """Set music and SFX volumes from the profile's settings."""
@@ -69,13 +71,21 @@ class SoundManager:
             self.play(event)
 
     def start_music(self) -> None:
-        """Begin looping the background music, if any is loaded."""
-        if not self.available or self._music_path is None:
+        """Begin looping the menu music, if available."""
+        self.play_music("menu_music")
+
+    def play_music(self, track: str) -> None:
+        """Loop `track`, switching only if a different one is already playing."""
+        if not self.available or track == self._current_music:
+            return
+        path = self._music_tracks.get(track)
+        if path is None:
             return
         try:
-            pygame.mixer.music.load(self._music_path)
+            pygame.mixer.music.load(path)
             pygame.mixer.music.set_volume(MUSIC_VOLUME)
             pygame.mixer.music.play(-1)
+            self._current_music = track
             if self.muted:
                 pygame.mixer.music.pause()
         except pygame.error:

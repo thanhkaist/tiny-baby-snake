@@ -1,147 +1,140 @@
-"""Procedurally generate the game's sound effects and music as WAV files.
+"""Procedurally synthesize the game's sound effects and music (numpy).
 
-Run with `python tools/gen_sounds.py`. Uses only the standard library so the
-audio assets can be regenerated anywhere without extra dependencies. Output
-goes to `assets/sounds/`.
+Run with `python tools/gen_sounds.py`. Uses additive harmonics + ADSR
+envelopes for a warmer, more polished chiptune feel than plain square waves.
+Outputs 16-bit mono WAVs to assets/sounds/.
 """
 
-import array
-import math
 import os
 import wave
 
+import numpy as np
+
 RATE = 44100
-Sample = float
+
+# Note frequencies (equal temperament).
+NOTES = {
+    "C3": 130.81, "E3": 164.81, "G3": 196.00, "A3": 220.00,
+    "C4": 261.63, "D4": 293.66, "E4": 329.63, "F4": 349.23, "G4": 392.00,
+    "A4": 440.00, "B4": 493.88, "C5": 523.25, "D5": 587.33, "E5": 659.25,
+    "F5": 698.46, "G5": 783.99, "A5": 880.00, "C6": 1046.50,
+}
 
 
-def _sine(freq: float, t: float) -> float:
-    return math.sin(2.0 * math.pi * freq * t)
+def adsr(n: int, a=0.01, d=0.06, s=0.6, r=0.12) -> np.ndarray:
+    """An attack/decay/sustain/release envelope of length n samples."""
+    a_n, d_n, r_n = int(a * RATE), int(d * RATE), int(r * RATE)
+    s_n = max(0, n - a_n - d_n - r_n)
+    env = np.concatenate([
+        np.linspace(0, 1, a_n, False) if a_n else np.array([]),
+        np.linspace(1, s, d_n, False) if d_n else np.array([]),
+        np.full(s_n, s),
+        np.linspace(s, 0, r_n, False) if r_n else np.array([]),
+    ])
+    if len(env) < n:
+        env = np.concatenate([env, np.zeros(n - len(env))])
+    return env[:n]
 
 
-def _square(freq: float, t: float) -> float:
-    return 1.0 if _sine(freq, t) >= 0.0 else -1.0
+def tone(freq, dur, harmonics=(1.0, 0.45, 0.22, 0.1), vol=0.5,
+         vib_rate=0.0, vib_depth=0.0, env=None) -> np.ndarray:
+    """A tone built from harmonics, enveloped."""
+    t = np.linspace(0, dur, int(dur * RATE), False)
+    wave = np.zeros_like(t)
+    vib = vib_depth * np.sin(2 * np.pi * vib_rate * t) if vib_rate else 0.0
+    for i, amp in enumerate(harmonics, 1):
+        wave += amp * np.sin(2 * np.pi * freq * i * t + vib)
+    wave /= sum(harmonics)
+    e = env if env is not None else adsr(len(t))
+    return wave * e * vol
 
 
-def tone(
-    freq: float,
-    dur: float,
-    *,
-    shape: str = "sine",
-    vol: float = 0.5,
-    attack: float = 0.005,
-    release: float = 0.03,
-) -> list[Sample]:
-    """One enveloped tone. `shape` is 'sine' or 'square'."""
+def sweep(f0, f1, dur, vol=0.5, vib_rate=0.0, vib_depth=0.0) -> np.ndarray:
+    """A tone gliding f0 -> f1."""
     n = int(dur * RATE)
-    out: list[Sample] = []
-    for i in range(n):
-        t = i / RATE
-        wave_fn = _square if shape == "square" else _sine
-        env = min(1.0, i / (attack * RATE + 1e-9)) * min(
-            1.0, (n - i) / (release * RATE + 1e-9)
-        )
-        out.append(wave_fn(freq, t) * env * vol)
+    t = np.linspace(0, dur, n, False)
+    freqs = np.linspace(f0, f1, n)
+    phase = np.cumsum(2 * np.pi * freqs / RATE)
+    vib = vib_depth * np.sin(2 * np.pi * vib_rate * t) if vib_rate else 0.0
+    return np.sin(phase + vib) * adsr(n, a=0.01, d=0.05, s=0.7, r=0.06) * vol
+
+
+def seq(*parts) -> np.ndarray:
+    return np.concatenate(parts) if parts else np.array([])
+
+
+def chord(freqs, dur, vol=0.4, **kw) -> np.ndarray:
+    out = sum(tone(f, dur, vol=vol, **kw) for f in freqs)
+    return out / max(1, len(freqs)) * 1.4
+
+
+def mix(*parts) -> np.ndarray:
+    n = max(len(p) for p in parts)
+    out = np.zeros(n)
+    for p in parts:
+        out[: len(p)] += p
     return out
 
 
-def sweep(
-    f0: float, f1: float, dur: float, *, shape: str = "sine", vol: float = 0.5
-) -> list[Sample]:
-    """A tone gliding from f0 to f1 over `dur` seconds."""
-    n = int(dur * RATE)
-    out: list[Sample] = []
-    phase = 0.0
-    for i in range(n):
-        frac = i / n
-        freq = f0 + (f1 - f0) * frac
-        phase += 2.0 * math.pi * freq / RATE
-        s = 1.0 if math.sin(phase) >= 0.0 else -1.0 if shape == "square" else math.sin(phase)
-        env = min(1.0, i / (0.005 * RATE)) * min(1.0, (n - i) / (0.03 * RATE))
-        out.append(s * env * vol)
-    return out
+def n(name):
+    return NOTES[name]
 
 
-def sequence(*parts: list[Sample]) -> list[Sample]:
-    """Concatenate sound fragments end to end."""
-    out: list[Sample] = []
-    for part in parts:
-        out.extend(part)
-    return out
-
-
-def mix(a: list[Sample], b: list[Sample]) -> list[Sample]:
-    """Overlay two fragments, summing sample-by-sample."""
-    n = max(len(a), len(b))
-    out: list[Sample] = []
-    for i in range(n):
-        va = a[i] if i < len(a) else 0.0
-        vb = b[i] if i < len(b) else 0.0
-        out.append(va + vb)
-    return out
-
-
-def write_wav(path: str, samples: list[Sample]) -> None:
-    """Write mono 16-bit PCM, clamping to avoid clipping artifacts."""
-    clamped = (max(-1.0, min(1.0, s)) for s in samples)
-    buf = array.array("h", (int(s * 32767) for s in clamped))
+def write_wav(path, samples) -> None:
+    peak = np.max(np.abs(samples)) or 1.0
+    if peak > 1.0:
+        samples = samples / peak
+    data = np.clip(samples, -1, 1)
+    pcm = (data * 32767).astype("<i2")
     with wave.open(path, "w") as w:
         w.setnchannels(1)
         w.setsampwidth(2)
         w.setframerate(RATE)
-        w.writeframes(buf.tobytes())
+        w.writeframes(pcm.tobytes())
 
 
-# Note frequencies (equal temperament).
-C4, D4, E4, F4, G4, A4, B4 = 261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88
-C5, E5, G5, C6 = 523.25, 659.25, 783.99, 1046.50
-
-
-def build() -> dict[str, list[Sample]]:
-    """Return every sound keyed by its file stem."""
+def build() -> dict[str, np.ndarray]:
+    pluck = dict(harmonics=(1.0, 0.5, 0.25), env=None)
     return {
-        "menu_move": tone(A4, 0.04, shape="square", vol=0.25),
-        "select": sequence(
-            tone(G4, 0.05, shape="square", vol=0.3),
-            tone(C5, 0.08, shape="square", vol=0.3),
-        ),
-        "eat": sequence(
-            tone(C5, 0.045, shape="square", vol=0.35),
-            tone(G5, 0.05, shape="square", vol=0.35),
-        ),
-        "teleport": sweep(300.0, 1300.0, 0.22, shape="sine", vol=0.4),
-        "level_cleared": sequence(
-            tone(C5, 0.09, vol=0.4),
-            tone(E5, 0.09, vol=0.4),
-            tone(G5, 0.09, vol=0.4),
-            tone(C6, 0.18, vol=0.45),
-        ),
-        "game_over": sequence(
-            tone(G4, 0.14, shape="square", vol=0.35),
-            tone(E4, 0.14, shape="square", vol=0.35),
-            tone(C4, 0.30, shape="square", vol=0.35),
-        ),
-        "win": sequence(
-            tone(C5, 0.10, vol=0.4),
-            tone(E5, 0.10, vol=0.4),
-            tone(G5, 0.10, vol=0.4),
-            tone(C6, 0.12, vol=0.45),
-            tone(G5, 0.10, vol=0.4),
-            tone(C6, 0.28, vol=0.5),
-        ),
-        "music": _music_loop(),
+        "menu_move": tone(n("A4"), 0.05, harmonics=(1, 0.3), vol=0.25),
+        "select": seq(tone(n("G4"), 0.06, vol=0.3, **pluck),
+                      tone(n("C5"), 0.1, vol=0.32, **pluck)),
+        "eat": tone(n("C5"), 0.09, harmonics=(1, 0.6, 0.3), vol=0.4,
+                    env=adsr(int(0.09 * RATE), a=0.002, d=0.04, s=0.2, r=0.04)),
+        "bonus": seq(tone(n("C5"), 0.07, vol=0.4), tone(n("E5"), 0.07, vol=0.4),
+                     tone(n("G5"), 0.07, vol=0.4), tone(n("C6"), 0.16, vol=0.45)),
+        "powerup": mix(sweep(400, 1200, 0.28, vol=0.35, vib_rate=18, vib_depth=6),
+                       chord([n("C5"), n("E5"), n("G5")], 0.28, vol=0.2)),
+        "teleport": sweep(300, 1300, 0.22, vol=0.4, vib_rate=30, vib_depth=40),
+        "level_cleared": seq(tone(n("C5"), 0.09, vol=0.4), tone(n("E5"), 0.09, vol=0.4),
+                             tone(n("G5"), 0.09, vol=0.4), tone(n("C6"), 0.2, vol=0.46)),
+        "game_over": seq(tone(n("G4"), 0.15, harmonics=(1, 0.4, 0.2), vol=0.35),
+                         tone(n("E4"), 0.15, harmonics=(1, 0.4, 0.2), vol=0.35),
+                         tone(n("C4"), 0.34, harmonics=(1, 0.4, 0.2), vol=0.35)),
+        "win": seq(tone(n("C5"), 0.1, vol=0.4), tone(n("E5"), 0.1, vol=0.4),
+                   tone(n("G5"), 0.1, vol=0.4), tone(n("C6"), 0.12, vol=0.45),
+                   tone(n("G5"), 0.1, vol=0.4), tone(n("C6"), 0.3, vol=0.5)),
+        "achievement": seq(chord([n("C5"), n("E5")], 0.1, vol=0.35),
+                           chord([n("G5"), n("C6")], 0.26, vol=0.4)),
+        "menu_music": _music(
+            [("C3", ["C4", "E4", "G4"]), ("G3", ["B4", "D5", "G4"]),
+             ("A3", ["A4", "C5", "E4"]), ("F4", ["F4", "A4", "C5"])], beat=0.34),
+        "game_music": _music(
+            [("C3", ["C4", "E4", "G4"]), ("A3", ["A4", "C5", "E4"]),
+             ("F4", ["F4", "A4", "C5"]), ("G3", ["G4", "B4", "D5"])], beat=0.22),
     }
 
 
-def _music_loop() -> list[Sample]:
-    """A gentle repeating arpeggio bed, low in the mix."""
-    pattern = [C4, E4, G4, E4, F4, A4, C5, A4, G4, B4, D4, B4, C4, G4, E4, G4]
-    beat = 0.16
-    out: list[Sample] = []
-    for note in pattern:
-        bass = tone(note / 2.0, beat, shape="sine", vol=0.14, release=0.05)
-        lead = tone(note, beat, shape="sine", vol=0.10, release=0.05)
-        out.extend(mix(bass, lead))
-    return out
+def _music(progression, beat) -> np.ndarray:
+    """A gentle looping bed: a bass note + a shimmering arpeggio per chord."""
+    out = []
+    for bass, arp in progression:
+        bass_wave = tone(n(bass), beat * len(arp), harmonics=(1, 0.3), vol=0.16,
+                         env=adsr(int(beat * len(arp) * RATE), a=0.02, d=0.1, s=0.7, r=0.2))
+        arp_wave = seq(*[tone(n(note), beat, harmonics=(1, 0.4, 0.15), vol=0.11)
+                         for note in arp])
+        out.append(mix(bass_wave, arp_wave))
+    return seq(*out)
 
 
 def main() -> None:
