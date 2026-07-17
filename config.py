@@ -27,10 +27,19 @@ COLOR_GRID = (28, 31, 42)
 COLOR_SNAKE_HEAD = (126, 217, 87)
 COLOR_SNAKE_BODY = (79, 168, 60)
 COLOR_FOOD = (232, 84, 84)
+COLOR_FOOD_WARNING = (240, 190, 74)  # food tint when it's about to teleport
+COLOR_WALL = (70, 78, 104)
 COLOR_HUD_BACKGROUND = (12, 13, 18)
 COLOR_TEXT = (226, 230, 240)
 COLOR_TEXT_DIM = (138, 146, 168)
 COLOR_OVERLAY = (0, 0, 0, 180)
+
+# Portal hues, cycled one per pair.
+COLOR_PORTALS = (
+    (86, 180, 233),
+    (204, 121, 167),
+    (240, 228, 66),
+)
 
 # Typography
 FONT_NAME = "freesansbold.ttf"
@@ -63,6 +72,7 @@ class GameState(Enum):
     INFO = "info"
     RUNNING = "running"
     PAUSED = "paused"
+    LEVEL_CLEARED = "level_cleared"
     GAME_OVER = "game_over"
     WON = "won"
 
@@ -88,10 +98,12 @@ INFO_LINES = (
     "Eat the red food to grow and score +10 each.",
     "The edges wrap around — leave one side,",
     "reappear on the opposite side.",
-    "Don't run into your own tail.",
+    "Don't run into your own tail or the walls.",
+    "Reach the target score to clear a level.",
+    "Later levels add walls, food that teleports",
+    "if you dawdle, and portals that whisk you across.",
     "",
-    "P or Space  —  pause / resume",
-    "R  —  restart      Esc  —  quit / back",
+    "P or Space — pause    R — restart    Esc — quit / back",
     "",
     "Your best score is saved between sessions.",
 )

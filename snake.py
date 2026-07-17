@@ -74,6 +74,14 @@ class Snake:
         else:
             self.body.pop()
 
+    def teleport_head(self, dest: Position) -> None:
+        """Relocate the head to `dest`, as when entering a portal.
+
+        The rest of the body is left where it is, so the snake emerges from the
+        paired portal while its trail stays behind — the classic wormhole look.
+        """
+        self.body[0] = dest
+
     def collides_with_self(self) -> bool:
         """Whether the head shares a cell with any other part of the body."""
         return self.head in self.body[1:]

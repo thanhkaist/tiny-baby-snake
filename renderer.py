@@ -6,14 +6,17 @@ from config import (
     CELL_SIZE,
     COLOR_BACKGROUND,
     COLOR_FOOD,
+    COLOR_FOOD_WARNING,
     COLOR_GRID,
     COLOR_HUD_BACKGROUND,
     COLOR_MENU_SELECTED,
     COLOR_OVERLAY,
+    COLOR_PORTALS,
     COLOR_SNAKE_BODY,
     COLOR_SNAKE_HEAD,
     COLOR_TEXT,
     COLOR_TEXT_DIM,
+    COLOR_WALL,
     FONT_NAME,
     FONT_SIZE_BODY,
     FONT_SIZE_HUD,
@@ -52,6 +55,8 @@ class Renderer:
         else:
             self.surface.fill(COLOR_BACKGROUND)
             self._draw_grid()
+            self._draw_walls(game)
+            self._draw_portals(game)
             self._draw_food(game)
             self._draw_snake(game)
             self._draw_hud(game)
@@ -123,12 +128,32 @@ class Renderer:
                 self.surface, COLOR_GRID, (0, y), (self.surface.get_width(), y)
             )
 
+    def _draw_walls(self, game: Game) -> None:
+        """Draw the current level's walls."""
+        for cell in game.level.walls:
+            pygame.draw.rect(self.surface, COLOR_WALL, self._cell_rect(cell))
+
+    def _draw_portals(self, game: Game) -> None:
+        """Draw each portal pair as a ringed cell in its own hue."""
+        for index, (a, b) in enumerate(game.level.portals):
+            color = COLOR_PORTALS[index % len(COLOR_PORTALS)]
+            for cell in (a, b):
+                pygame.draw.rect(self.surface, color, self._cell_rect(cell), width=4)
+                pygame.draw.rect(
+                    self.surface, color, self._cell_rect(cell).inflate(-14, -14)
+                )
+
     def _draw_food(self, game: Game) -> None:
-        """Draw the food, if it's currently on the board."""
-        if game.food.position is not None:
-            pygame.draw.rect(
-                self.surface, COLOR_FOOD, self._cell_rect(game.food.position).inflate(-4, -4)
-            )
+        """Draw the food, flashing a warning tint when it's about to teleport."""
+        if game.food.position is None:
+            return
+        color = COLOR_FOOD
+        ttl = game.level.food_ttl
+        if ttl is not None and game.food_timer >= ttl * 0.6:
+            color = COLOR_FOOD_WARNING
+        pygame.draw.rect(
+            self.surface, color, self._cell_rect(game.food.position).inflate(-4, -4)
+        )
 
     def _draw_snake(self, game: Game) -> None:
         """Draw the snake, head highlighted."""
@@ -144,6 +169,17 @@ class Renderer:
         score = self._font_hud.render(f"Score {game.score}", True, COLOR_TEXT)
         self.surface.blit(score, (12, (HUD_HEIGHT - score.get_height()) // 2))
 
+        level = self._font_hud.render(
+            f"Lv {game.level_index + 1}  {game.level.name}", True, COLOR_MENU_SELECTED
+        )
+        self.surface.blit(
+            level,
+            (
+                (self.surface.get_width() - level.get_width()) // 2,
+                (HUD_HEIGHT - level.get_height()) // 2,
+            ),
+        )
+
         best = self._font_hud.render(f"Best {game.high_score}", True, COLOR_TEXT_DIM)
         self.surface.blit(
             best,
@@ -154,9 +190,13 @@ class Renderer:
         )
 
     def _draw_overlay(self, game: Game) -> None:
-        """Draw the pause / game-over / win overlay when applicable."""
+        """Draw the pause / level-cleared / game-over / win overlay."""
         messages = {
             GameState.PAUSED: ("Paused", "Press P or Space to resume"),
+            GameState.LEVEL_CLEARED: (
+                f"Level {game.level_index + 1} Complete!",
+                "Press Enter for the next level",
+            ),
             GameState.GAME_OVER: ("Game Over", "Press Enter or R to play again"),
             GameState.WON: ("You Win!", "Press Enter or R to play again"),
         }

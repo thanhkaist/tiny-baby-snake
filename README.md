@@ -19,11 +19,34 @@
 ## Features
 
 - Start menu with a "How to Play" screen
+- **Five levels of rising difficulty** — reach a target score to advance
+- **Complex wall layouts** that end the game on contact
+- **Teleporting food** that relocates if you take too long
+- **Portals** that whisk the snake's head across the board
 - Wrap-around edges — leave one side, reappear on the opposite side
 - Score tracking with a high score persisted between sessions
 - Pause / resume and restart
 - Arrow-key or WASD controls
 - Core game logic decoupled from pygame, so it runs and unit-tests headlessly
+
+## Levels
+
+Clear a level by reaching its target score, then press Enter to advance. Each
+level keeps your score and drops the snake into a fresh layout.
+
+<p align="center">
+  <img src="assets/level_corridors.png" alt="Corridors level" width="45%">
+  &nbsp;&nbsp;
+  <img src="assets/level_wormholes.png" alt="Wormholes level with portals" width="45%">
+</p>
+
+| # | Level | Twist |
+|---|---|---|
+| 1 | Open Field | Classic open board |
+| 2 | Pillars | Four obstacle blocks |
+| 3 | Corridors | A maze of walls |
+| 4 | Shifting Feast | Food teleports if you dawdle |
+| 5 | Wormholes | Portals + teleporting food |
 
 ## Setup
 
@@ -45,7 +68,7 @@ venv/bin/python main.py
 | Key | Action |
 |---|---|
 | Arrow keys / WASD | Steer (or navigate the menu) |
-| Enter | Select menu option / restart after game over |
+| Enter | Select menu option / advance level / restart after game over |
 | P or Space | Pause / resume |
 | R | Restart |
 | Esc | Quit (or back out of the info screen) |
@@ -66,6 +89,7 @@ suite runs without a display.
 |---|---|
 | `main.py` | Entry point + game loop |
 | `game.py` | Game state and update logic |
+| `levels.py` | Level layouts, walls, portals |
 | `snake.py` | Snake entity |
 | `food.py` | Food entity |
 | `storage.py` | High-score persistence |

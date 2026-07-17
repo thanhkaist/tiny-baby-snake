@@ -45,6 +45,8 @@ def _apply_intent(intent: tuple, game: Game) -> bool:
             game.menu_select()
         elif game.state is GameState.INFO:
             game.back_to_menu()
+        elif game.state is GameState.LEVEL_CLEARED:
+            game.advance_level()
         elif game.state in (GameState.GAME_OVER, GameState.WON):
             game.reset()
 

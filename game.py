@@ -17,6 +17,7 @@ from config import (
     GameState,
 )
 from food import Food
+from levels import LEVELS, build_portal_map
 from snake import Snake
 from storage import load_high_score, save_high_score
 
@@ -44,15 +45,40 @@ class Game:
         self.state = GameState.MENU
 
     def _new_round(self) -> None:
-        """Set up a fresh snake, food, and score without changing state."""
-        self.snake = Snake()
-        self.food = Food()
-        self.food.respawn(self.snake.occupied_cells(), self.grid_size, self._rng)
+        """Set up a fresh game at the first level, without changing state."""
         self.score = 0
+        self._load_level(0)
+
+    def _load_level(self, index: int) -> None:
+        """Load level `index`: place the snake, portals, and food. Keeps score."""
+        self.level_index = index
+        self.level = LEVELS[index]
+        self.portal_map = build_portal_map(self.level)
+        self.snake = Snake(start=self.level.start, direction=self.level.start_dir)
+        self.food = Food()
+        self.food_timer = 0
+        self._respawn_food()
+
+    def _respawn_food(self) -> bool:
+        """Place food on a free cell, avoiding the snake, walls, and portals."""
+        occupied = self.snake.occupied_cells() | self.level.blocked_cells()
+        return self.food.respawn(occupied, self.grid_size, self._rng)
+
+    @property
+    def is_final_level(self) -> bool:
+        """Whether the current level is the last one."""
+        return self.level_index >= len(LEVELS) - 1
 
     def reset(self) -> None:
         """Start a new round in play, keeping the loaded high score."""
         self._new_round()
+        self.state = GameState.RUNNING
+
+    def advance_level(self) -> None:
+        """Move to the next level after clearing one, keeping the score."""
+        if self.state is not GameState.LEVEL_CLEARED:
+            return
+        self._load_level(self.level_index + 1)
         self.state = GameState.RUNNING
 
     def menu_move(self, delta: int) -> None:
@@ -94,20 +120,42 @@ class Game:
 
         self.snake.move(self.grid_size)
 
-        if self.snake.collides_with_self():
+        # A portal whisks the head to its paired hole before any collision test.
+        partner = self.portal_map.get(self.snake.head)
+        if partner is not None:
+            self.snake.teleport_head(partner)
+
+        if self.snake.head in self.level.walls or self.snake.collides_with_self():
             self.state = GameState.GAME_OVER
             self._record_high_score()
             return
 
         if self.snake.head == self.food.position:
-            self.snake.grow()
-            self.score += POINTS_PER_FOOD
-            placed = self.food.respawn(
-                self.snake.occupied_cells(), self.grid_size, self._rng
-            )
-            if not placed:
+            self._eat_food()
+        elif self.level.food_ttl is not None:
+            # Uneaten food teleports once its welcome runs out.
+            self.food_timer += 1
+            if self.food_timer >= self.level.food_ttl:
+                self._respawn_food()
+                self.food_timer = 0
+
+    def _eat_food(self) -> None:
+        """Grow, score, and either clear the level or lay out the next food."""
+        self.snake.grow()
+        self.score += POINTS_PER_FOOD
+        self.food_timer = 0
+
+        if self.score >= self.level.advance_score:
+            self._record_high_score()
+            if self.is_final_level:
                 self.state = GameState.WON
-                self._record_high_score()
+            else:
+                self.state = GameState.LEVEL_CLEARED
+            return
+
+        if not self._respawn_food():
+            self.state = GameState.WON
+            self._record_high_score()
 
     def _record_high_score(self) -> None:
         """Persist the score if it beats the stored best."""
