@@ -2,6 +2,7 @@
 
 import pygame
 
+from audio import SoundManager
 from config import (
     FPS,
     WINDOW_HEIGHT,
@@ -10,18 +11,20 @@ from config import (
     Direction,
     GameState,
     Intent,
+    SoundEvent,
 )
 from game import Game
 from input_handler import InputHandler
 from renderer import Renderer
 
 
-def _apply_intent(intent: tuple, game: Game) -> bool:
+def _apply_intent(intent: tuple, game: Game, audio: SoundManager) -> bool:
     """Act on one decoded intent; return False to request quitting.
 
     The same intent means different things per state — arrows steer during
     play but navigate the menu, and Esc backs out of the info screen rather
-    than quitting.
+    than quitting. UI sounds are played here; gameplay sounds come from
+    `game.events` after each update.
     """
     action, payload = intent
 
@@ -35,24 +38,33 @@ def _apply_intent(intent: tuple, game: Game) -> bool:
         if game.state is GameState.MENU:
             if payload is Direction.UP:
                 game.menu_move(-1)
+                audio.play(SoundEvent.MENU_MOVE)
             elif payload is Direction.DOWN:
                 game.menu_move(1)
+                audio.play(SoundEvent.MENU_MOVE)
         else:
             game.set_direction(payload)
 
     elif action is Intent.CONFIRM:
         if game.state is GameState.MENU:
             game.menu_select()
+            audio.play(SoundEvent.SELECT)
         elif game.state is GameState.INFO:
             game.back_to_menu()
+            audio.play(SoundEvent.SELECT)
         elif game.state is GameState.LEVEL_CLEARED:
             game.advance_level()
+            audio.play(SoundEvent.SELECT)
         elif game.state in (GameState.GAME_OVER, GameState.WON):
             game.reset()
+            audio.play(SoundEvent.SELECT)
 
     elif action is Intent.TOGGLE_PAUSE:
         if game.state in (GameState.RUNNING, GameState.PAUSED):
             game.toggle_pause()
+
+    elif action is Intent.TOGGLE_MUTE:
+        audio.toggle_mute()
 
     elif action is Intent.RESTART:
         if game.state is not GameState.INFO:
@@ -71,13 +83,16 @@ def main() -> None:
     game = Game()
     renderer = Renderer(screen)
     handler = InputHandler()
+    audio = SoundManager()
+    audio.start_music()
 
     running = True
     while running:
         for intent in handler.process(pygame.event.get()):
-            if not _apply_intent(intent, game):
+            if not _apply_intent(intent, game, audio):
                 running = False
         game.update()
+        audio.play_events(game.events)
         renderer.draw(game)
         clock.tick(FPS)
 

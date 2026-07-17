@@ -40,6 +40,8 @@ class InputHandler:
             return (Intent.CONFIRM, None)
         if key in (pygame.K_p, pygame.K_SPACE):
             return (Intent.TOGGLE_PAUSE, None)
+        if key == pygame.K_m:
+            return (Intent.TOGGLE_MUTE, None)
         if key == pygame.K_r:
             return (Intent.RESTART, None)
         if key == pygame.K_ESCAPE:

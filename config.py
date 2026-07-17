@@ -83,8 +83,27 @@ class Intent(Enum):
     MOVE = "move"
     CONFIRM = "confirm"
     TOGGLE_PAUSE = "toggle_pause"
+    TOGGLE_MUTE = "toggle_mute"
     RESTART = "restart"
     QUIT = "quit"
+
+
+class SoundEvent(Enum):
+    """A gameplay moment worth a sound. Values are the WAV file stems."""
+
+    MENU_MOVE = "menu_move"
+    SELECT = "select"
+    EAT = "eat"
+    TELEPORT = "teleport"
+    LEVEL_CLEARED = "level_cleared"
+    GAME_OVER = "game_over"
+    WIN = "win"
+
+
+# Audio
+SOUND_DIR = "assets/sounds"
+MUSIC_VOLUME = 0.35
+SFX_VOLUME = 0.8
 
 
 # Main menu
@@ -104,6 +123,7 @@ INFO_LINES = (
     "if you dawdle, and portals that whisk you across.",
     "",
     "P or Space — pause    R — restart    Esc — quit / back",
+    "M — mute / unmute sound",
     "",
     "Your best score is saved between sessions.",
 )

@@ -25,6 +25,8 @@
 - **Portals** that whisk the snake's head across the board
 - Wrap-around edges — leave one side, reappear on the opposite side
 - Score tracking with a high score persisted between sessions
+- **Sound effects and background music** (with a mute toggle) — all
+  procedurally generated, no binary assets required to regenerate
 - Pause / resume and restart
 - Arrow-key or WASD controls
 - Core game logic decoupled from pygame, so it runs and unit-tests headlessly
@@ -70,8 +72,12 @@ venv/bin/python main.py
 | Arrow keys / WASD | Steer (or navigate the menu) |
 | Enter | Select menu option / advance level / restart after game over |
 | P or Space | Pause / resume |
+| M | Mute / unmute sound |
 | R | Restart |
 | Esc | Quit (or back out of the info screen) |
+
+Audio degrades gracefully — if no sound device is available (e.g. a headless
+machine), the game runs silently rather than failing.
 
 ## Tests
 
@@ -95,5 +101,13 @@ suite runs without a display.
 | `storage.py` | High-score persistence |
 | `renderer.py` | Drawing to the pygame surface |
 | `input_handler.py` | Keyboard events → game intents |
+| `audio.py` | Sound-effect and music playback |
 | `config.py` | Constants and shared enums |
+| `tools/gen_sounds.py` | Regenerates the WAV assets (stdlib only) |
 | `tests/` | Unit tests |
+
+Regenerate the audio assets any time with:
+
+```bash
+venv/bin/python tools/gen_sounds.py
+```

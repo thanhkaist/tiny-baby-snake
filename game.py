@@ -15,6 +15,7 @@ from config import (
     POINTS_PER_FOOD,
     Direction,
     GameState,
+    SoundEvent,
 )
 from food import Food
 from levels import LEVELS, build_portal_map
@@ -41,6 +42,7 @@ class Game:
         self._high_score_path = high_score_path
         self.high_score = load_high_score(high_score_path)
         self.menu_index = 0
+        self.events: list[SoundEvent] = []  # sound events emitted this tick
         self._new_round()
         self.state = GameState.MENU
 
@@ -114,7 +116,8 @@ class Game:
             self.state = GameState.RUNNING
 
     def update(self) -> None:
-        """Advance the game by one tick."""
+        """Advance the game by one tick, collecting any sound events."""
+        self.events = []
         if self.state is not GameState.RUNNING:
             return
 
@@ -124,9 +127,11 @@ class Game:
         partner = self.portal_map.get(self.snake.head)
         if partner is not None:
             self.snake.teleport_head(partner)
+            self.events.append(SoundEvent.TELEPORT)
 
         if self.snake.head in self.level.walls or self.snake.collides_with_self():
             self.state = GameState.GAME_OVER
+            self.events.append(SoundEvent.GAME_OVER)
             self._record_high_score()
             return
 
@@ -144,17 +149,21 @@ class Game:
         self.snake.grow()
         self.score += POINTS_PER_FOOD
         self.food_timer = 0
+        self.events.append(SoundEvent.EAT)
 
         if self.score >= self.level.advance_score:
             self._record_high_score()
             if self.is_final_level:
                 self.state = GameState.WON
+                self.events.append(SoundEvent.WIN)
             else:
                 self.state = GameState.LEVEL_CLEARED
+                self.events.append(SoundEvent.LEVEL_CLEARED)
             return
 
         if not self._respawn_food():
             self.state = GameState.WON
+            self.events.append(SoundEvent.WIN)
             self._record_high_score()
 
     def _record_high_score(self) -> None:
