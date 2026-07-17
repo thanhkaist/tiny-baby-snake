@@ -1,0 +1,101 @@
+"""Constants and shared value types for the Snake game."""
+
+from enum import Enum
+
+# Grid
+GRID_WIDTH = 24
+GRID_HEIGHT = 24
+CELL_SIZE = 24
+
+WINDOW_WIDTH = GRID_WIDTH * CELL_SIZE
+WINDOW_HEIGHT = GRID_HEIGHT * CELL_SIZE + 48  # extra band for the score bar
+HUD_HEIGHT = 48
+
+# Timing — the snake advances one cell per frame, so this is also its speed.
+FPS = 10
+
+# Snake
+INITIAL_SNAKE_LENGTH = 3
+
+# Scoring
+POINTS_PER_FOOD = 10
+HIGH_SCORE_FILE = "highscore.txt"
+
+# Colors (R, G, B)
+COLOR_BACKGROUND = (18, 20, 28)
+COLOR_GRID = (28, 31, 42)
+COLOR_SNAKE_HEAD = (126, 217, 87)
+COLOR_SNAKE_BODY = (79, 168, 60)
+COLOR_FOOD = (232, 84, 84)
+COLOR_HUD_BACKGROUND = (12, 13, 18)
+COLOR_TEXT = (226, 230, 240)
+COLOR_TEXT_DIM = (138, 146, 168)
+COLOR_OVERLAY = (0, 0, 0, 180)
+
+# Typography
+FONT_NAME = "freesansbold.ttf"
+FONT_SIZE_HUD = 20
+FONT_SIZE_TITLE = 44
+FONT_SIZE_SUBTITLE = 18
+
+WINDOW_TITLE = "Tiny Baby Snake"
+
+
+class Direction(Enum):
+    """A unit step on the grid, in (dx, dy) with y growing downward."""
+
+    UP = (0, -1)
+    DOWN = (0, 1)
+    LEFT = (-1, 0)
+    RIGHT = (1, 0)
+
+    @property
+    def opposite(self) -> "Direction":
+        """Return the direction pointing the other way."""
+        dx, dy = self.value
+        return Direction((-dx, -dy))
+
+
+class GameState(Enum):
+    """Which phase of play the game is currently in."""
+
+    MENU = "menu"
+    INFO = "info"
+    RUNNING = "running"
+    PAUSED = "paused"
+    GAME_OVER = "game_over"
+    WON = "won"
+
+
+class Intent(Enum):
+    """A player instruction, decoded from raw input."""
+
+    MOVE = "move"
+    CONFIRM = "confirm"
+    TOGGLE_PAUSE = "toggle_pause"
+    RESTART = "restart"
+    QUIT = "quit"
+
+
+# Main menu
+MENU_START = "Start Game"
+MENU_INFO = "How to Play"
+MENU_OPTIONS = (MENU_START, MENU_INFO)
+
+# How-to-play screen: each line is one row of body text.
+INFO_LINES = (
+    "Steer with the Arrow keys or W A S D.",
+    "Eat the red food to grow and score +10 each.",
+    "The edges wrap around — leave one side,",
+    "reappear on the opposite side.",
+    "Don't run into your own tail.",
+    "",
+    "P or Space  —  pause / resume",
+    "R  —  restart      Esc  —  quit / back",
+    "",
+    "Your best score is saved between sessions.",
+)
+
+COLOR_MENU_SELECTED = COLOR_SNAKE_HEAD
+FONT_SIZE_MENU = 28
+FONT_SIZE_BODY = 20

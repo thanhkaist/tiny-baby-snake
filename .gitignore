@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Virtual environment
+venv/
+.venv/
+
+# Runtime data
+highscore.txt
+
+# Editor / OS / tooling
+.vscode/
+.idea/
+.DS_Store
+.claude/
