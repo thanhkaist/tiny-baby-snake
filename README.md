@@ -1,113 +1,126 @@
-# Tiny Baby Snake
+# 🐍 Tiny Baby Snake
 
 <p align="center">
-  <img src="assets/menu.png" alt="Tiny Baby Snake title screen" width="480">
+  <img src="assets/gameplay.gif" alt="Tiny Baby Snake gameplay" width="420">
 </p>
 
 <p align="center">
-  <em>A classic Snake game built with Python and pygame.</em><br>
-  Steer a growing snake around a wrapping grid, eat food to score,<br>
-  and try not to run into your own tail.
+  <em>A playful, professional-grade cartoon Snake game built with Python &amp; pygame.</em><br>
+  Smooth 60fps movement, googly-eyed snakes, five game modes, power-ups,<br>
+  unlockable skins, achievements, and juicy particle effects.
 </p>
 
 <p align="center">
-  <img src="assets/gameplay.png" alt="Gameplay" width="45%">
-  &nbsp;&nbsp;
-  <img src="assets/howtoplay.png" alt="How to Play screen" width="45%">
+  <img src="assets/menu.png" alt="Main menu" width="30%">
+  &nbsp;
+  <img src="assets/gameplay.png" alt="Gameplay" width="30%">
+  &nbsp;
+  <img src="assets/mode_select.png" alt="Mode select" width="30%">
 </p>
 
-## Features
+## Highlights
 
-- Start menu with a "How to Play" screen
-- **Five levels of rising difficulty** — reach a target score to advance
-- **Complex wall layouts** that end the game on contact
-- **Teleporting food** that relocates if you take too long
-- **Portals** that whisk the snake's head across the board
-- Wrap-around edges — leave one side, reappear on the opposite side
-- Score tracking with a high score persisted between sessions
-- **Sound effects and background music** (with a mute toggle) — all
-  procedurally generated, no binary assets required to regenerate
-- Pause / resume and restart
-- Arrow-key or WASD controls
-- Core game logic decoupled from pygame, so it runs and unit-tests headlessly
+- **Buttery-smooth movement** — logic and rendering are decoupled; the snake
+  glides at 60fps by interpolating between fixed logic ticks.
+- **Playful cartoon art** — a rounded, gradient snake with googly eyes that
+  track its heading and a flicking tongue, on a grass checkerboard board.
+- **Juice everywhere** — particle bursts, confetti, screen shake, colour
+  flashes, floating score pop-ups, squash-and-stretch, and scene transitions.
+- **Five game modes** — Adventure, Classic, Time Attack, Zen, and Maze.
+- **Power-ups & bonus food** — Slow-Mo, Double, Ghost, Magnet, Shrink, and
+  golden bonus fruit.
+- **Progression** — a persistent profile with per-mode high scores, lifetime
+  stats, achievements, and unlockable snake skins.
+- **Settings** — master/music/SFX volume and a screen-shake toggle.
+- **Procedural audio** — every sound effect and both music tracks are
+  synthesized from code (numpy), no binary source assets required.
+- **Tested & packaged** — 74 headless unit tests, CI, and a one-file build.
 
-## Levels
+## Game modes
 
-Clear a level by reaching its target score, then press Enter to advance. Each
-level keeps your score and drops the snake into a fresh layout.
+| Mode | Description |
+|---|---|
+| **Adventure** | Clear five hand-built levels of walls & teleport portals |
+| **Classic** | Endless open board that speeds up as you grow |
+| **Time Attack** | Score as much as you can in 60 seconds |
+| **Zen** | No walls, no dying — just vibes |
+| **Maze** | Thread the needle through a maze that kills on contact |
 
-<p align="center">
-  <img src="assets/level_corridors.png" alt="Corridors level" width="45%">
-  &nbsp;&nbsp;
-  <img src="assets/level_wormholes.png" alt="Wormholes level with portals" width="45%">
-</p>
+## Power-ups
 
-| # | Level | Twist |
+Available in every mode except Adventure. Grab the floating gem to trigger it:
+
+| | Power-up | Effect |
 |---|---|---|
-| 1 | Open Field | Classic open board |
-| 2 | Pillars | Four obstacle blocks |
-| 3 | Corridors | A maze of walls |
-| 4 | Shifting Feast | Food teleports if you dawdle |
-| 5 | Wormholes | Portals + teleporting food |
+| **S** | Slow-Mo | Halves your speed for a while |
+| **x2** | Double | Doubles points earned |
+| **G** | Ghost | Pass through walls and yourself |
+| **M** | Magnet | Pulls food toward your head |
+| **–** | Shrink | Trims a few segments off your tail |
+
+Golden **bonus fruit** appears periodically and is worth 5×, but it vanishes if
+you're too slow.
 
 ## Setup
 
-Requires Python 3 and pygame.
+Requires Python 3.11+.
 
 ```bash
 python3 -m venv venv
-venv/bin/pip install pygame
-```
-
-## Play
-
-```bash
+venv/bin/pip install -r requirements.txt
 venv/bin/python main.py
 ```
 
-**Controls**
+## Controls
 
 | Key | Action |
 |---|---|
-| Arrow keys / WASD | Steer (or navigate the menu) |
-| Enter | Select menu option / advance level / restart after game over |
-| P or Space | Pause / resume |
-| M | Mute / unmute sound |
-| R | Restart |
-| Esc | Quit (or back out of the info screen) |
+| Arrow keys / WASD | Steer · navigate menus |
+| Enter | Select · advance level · restart |
+| P / Space | Pause / resume |
+| M | Mute / unmute |
+| Esc | Back · quit |
 
-Audio degrades gracefully — if no sound device is available (e.g. a headless
-machine), the game runs silently rather than failing.
-
-## Tests
+## Development
 
 ```bash
-venv/bin/pip install pytest
-venv/bin/python -m pytest tests/ -v
+venv/bin/pip install -r requirements-dev.txt
+pytest                              # 74 headless tests, no display needed
+python tools/gen_sounds.py          # regenerate audio (numpy)
+python tools/gen_media.py           # regenerate screenshots + GIF
 ```
 
-The core modules (`game`, `snake`, `food`, `storage`) import no pygame, so the
-suite runs without a display.
+### Build a standalone executable
 
-## Layout
+```bash
+pyinstaller tiny-baby-snake.spec --noconfirm
+./dist/tiny-baby-snake
+```
 
-| File | Responsibility |
+## Architecture
+
+The game logic core imports **no pygame**, so it runs and unit-tests fully
+headless. Presentation is layered on top.
+
+| Path | Responsibility |
 |---|---|
-| `main.py` | Entry point + game loop |
-| `game.py` | Game state and update logic |
-| `levels.py` | Level layouts, walls, portals |
-| `snake.py` | Snake entity |
-| `food.py` | Food entity |
-| `storage.py` | High-score persistence |
-| `renderer.py` | Drawing to the pygame surface |
-| `input_handler.py` | Keyboard events → game intents |
-| `audio.py` | Sound-effect and music playback |
-| `config.py` | Constants and shared enums |
-| `tools/gen_sounds.py` | Regenerates the WAV assets (stdlib only) |
-| `tests/` | Unit tests |
+| `engine/` | Pure game logic — snake, food, levels, modes, power-ups, profile, achievements, `game.py` |
+| `fx/` | Cartoon drawing, theme/skins, particles, camera (shake/flash) |
+| `scenes/`, `ui/` | Presentation scaffolding |
+| `renderer.py` | Draws a `Game` to the screen with effects |
+| `input_handler.py` | Keyboard events → intents |
+| `audio.py` | Sound-effect & music playback |
+| `storage.py`, `paths.py` | Persistence & bundled-asset resolution |
+| `main.py` | Entry point + fixed-timestep game loop |
+| `tools/` | Asset generators (`gen_sounds.py`, `gen_media.py`) |
+| `tests/` | 74 unit tests |
 
-Regenerate the audio assets any time with:
+## Roadmap
 
-```bash
-venv/bin/python tools/gen_sounds.py
-```
+- Local 2-player Versus mode
+- Daily challenge seeds
+- Online leaderboards
+
+## License
+
+MIT

@@ -1,0 +1,22 @@
+[project]
+name = "tiny-baby-snake"
+version = "2.0.0"
+description = "A playful, professional-grade cartoon Snake game built with pygame."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = ["pygame>=2.5"]
+
+[project.optional-dependencies]
+dev = ["numpy>=1.24", "pytest>=8", "pillow>=10", "pyinstaller>=6"]
+
+[project.scripts]
+tiny-baby-snake = "main:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Tests run headless; tests/conftest.py sets the dummy SDL drivers.
+
+[tool.setuptools]
+py-modules = ["main", "renderer", "input_handler", "audio", "storage", "config", "paths"]
+packages = ["engine", "fx", "ui", "scenes"]

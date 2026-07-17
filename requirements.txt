@@ -1,0 +1,4 @@
+# Runtime dependencies for Tiny Baby Snake.
+# The committed WAV assets mean numpy is only needed to *regenerate* audio
+# (see requirements-dev.txt), not to play the game.
+pygame>=2.5

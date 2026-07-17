@@ -1,0 +1,6 @@
+# Development & build dependencies.
+-r requirements.txt
+numpy>=1.24      # audio synthesis in tools/gen_sounds.py
+pytest>=8       # test suite
+pillow>=10      # screenshot/GIF generation in tools/gen_media.py
+pyinstaller>=6  # standalone executable builds

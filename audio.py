@@ -10,6 +10,7 @@ import os
 import pygame
 
 from config import MUSIC_VOLUME, SFX_VOLUME, SOUND_DIR, SoundEvent
+from paths import resource_path
 
 
 class SoundManager:
@@ -17,6 +18,7 @@ class SoundManager:
 
     def __init__(self, sound_dir: str = SOUND_DIR, enabled: bool = True) -> None:
         """Initialize the mixer and load sounds, tolerating audio failures."""
+        sound_dir = resource_path(sound_dir)
         self.available = False
         self.muted = False
         self._sounds: dict[SoundEvent, pygame.mixer.Sound] = {}

@@ -10,6 +10,12 @@ venv/
 
 # Runtime data
 highscore.txt
+profile.json
+
+# Build artifacts
+build/
+dist/
+*.manifest
 
 # Editor / OS / tooling
 .vscode/
