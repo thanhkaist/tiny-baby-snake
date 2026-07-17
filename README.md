@@ -1,7 +1,20 @@
 # Tiny Baby Snake
 
-A classic Snake game built with Python and pygame. Steer a growing snake around
-a wrapping grid, eat food to score, and try not to run into your own tail.
+<p align="center">
+  <img src="assets/menu.png" alt="Tiny Baby Snake title screen" width="480">
+</p>
+
+<p align="center">
+  <em>A classic Snake game built with Python and pygame.</em><br>
+  Steer a growing snake around a wrapping grid, eat food to score,<br>
+  and try not to run into your own tail.
+</p>
+
+<p align="center">
+  <img src="assets/gameplay.png" alt="Gameplay" width="45%">
+  &nbsp;&nbsp;
+  <img src="assets/howtoplay.png" alt="How to Play screen" width="45%">
+</p>
 
 ## Features
 
