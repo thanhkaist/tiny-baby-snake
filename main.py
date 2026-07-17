@@ -5,6 +5,7 @@ import pygame
 from audio import SoundManager
 from config import (
     MAX_STEPS_PER_FRAME,
+    PROFILE_FILE,
     RENDER_FPS,
     WINDOW_HEIGHT,
     WINDOW_TITLE,
@@ -29,26 +30,39 @@ def _apply_intent(intent: tuple, game: Game, audio: SoundManager) -> bool:
     """
     action, payload = intent
 
+    back_states = (
+        GameState.INFO, GameState.MODE_SELECT, GameState.SETTINGS,
+        GameState.SKINS, GameState.STATS,
+    )
+
     if action is Intent.QUIT:
-        if game.state in (GameState.INFO, GameState.MODE_SELECT):
+        if game.state in back_states:
             game.back_to_menu()
             return True
         return False
 
     if action is Intent.MOVE:
         if game.state is GameState.MENU:
-            if payload is Direction.UP:
-                game.menu_move(-1)
-                audio.play(SoundEvent.MENU_MOVE)
-            elif payload is Direction.DOWN:
-                game.menu_move(1)
+            game.menu_move(-1 if payload is Direction.UP else 1
+                           if payload is Direction.DOWN else 0)
+            if payload in (Direction.UP, Direction.DOWN):
                 audio.play(SoundEvent.MENU_MOVE)
         elif game.state is GameState.MODE_SELECT:
-            if payload is Direction.UP:
-                game.mode_menu_move(-1)
+            if payload in (Direction.UP, Direction.DOWN):
+                game.mode_menu_move(-1 if payload is Direction.UP else 1)
                 audio.play(SoundEvent.MENU_MOVE)
-            elif payload is Direction.DOWN:
-                game.mode_menu_move(1)
+        elif game.state is GameState.SETTINGS:
+            if payload in (Direction.UP, Direction.DOWN):
+                game.settings_move(-1 if payload is Direction.UP else 1)
+                audio.play(SoundEvent.MENU_MOVE)
+            elif payload in (Direction.LEFT, Direction.RIGHT):
+                game.settings_adjust(-1 if payload is Direction.LEFT else 1)
+                audio.play(SoundEvent.MENU_MOVE)
+        elif game.state is GameState.SKINS:
+            step = {Direction.LEFT: -1, Direction.RIGHT: 1,
+                    Direction.UP: -3, Direction.DOWN: 3}.get(payload, 0)
+            if step:
+                game.skins_move(step)
                 audio.play(SoundEvent.MENU_MOVE)
         else:
             game.set_direction(payload)
@@ -60,7 +74,10 @@ def _apply_intent(intent: tuple, game: Game, audio: SoundManager) -> bool:
         elif game.state is GameState.MODE_SELECT:
             game.mode_menu_select()
             audio.play(SoundEvent.SELECT)
-        elif game.state is GameState.INFO:
+        elif game.state is GameState.SKINS:
+            if game.skins_select():
+                audio.play(SoundEvent.SELECT)
+        elif game.state in (GameState.INFO, GameState.SETTINGS, GameState.STATS):
             game.back_to_menu()
             audio.play(SoundEvent.SELECT)
         elif game.state is GameState.LEVEL_CLEARED:
@@ -91,11 +108,13 @@ def main() -> None:
     pygame.display.set_caption(WINDOW_TITLE)
     clock = pygame.time.Clock()
 
-    game = Game()
+    game = Game(high_score_path=PROFILE_FILE)
     renderer = Renderer(screen)
     handler = InputHandler()
     audio = SoundManager()
     audio.start_music()
+    renderer.apply_profile(game.profile)
+    audio.apply_settings(game.profile.settings)
 
     accumulator = 0.0
 
@@ -105,6 +124,10 @@ def main() -> None:
         for intent in handler.process(pygame.event.get()):
             if not _apply_intent(intent, game, audio):
                 running = False
+
+        # Reflect any profile changes (skin, volumes, shake) immediately.
+        renderer.apply_profile(game.profile)
+        audio.apply_settings(game.profile.settings)
 
         # Advance logic in fixed steps, decoupled from the render rate. The
         # step shrinks as the mode's speed rises (e.g. Classic speeding up).

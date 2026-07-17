@@ -29,13 +29,15 @@ from config import (
     GameState,
     SoundEvent,
 )
+from engine.achievements import ACHIEVEMENTS
 from engine.game import Game
 from engine.modes import MODES
 from engine.powerups import SPECS
+from engine.profile import SETTING_FIELDS
 from fx import draw
 from fx.camera import Camera
 from fx.particles import ParticleSystem
-from fx.theme import DEFAULT_THEME, SKINS, Skin, Theme
+from fx.theme import DEFAULT_THEME, SKINS, Skin, Theme, skin_by_key
 
 
 class Renderer:
@@ -58,14 +60,23 @@ class Renderer:
         self.particles = ParticleSystem()
         self.camera = Camera()
         self._popups: list[dict] = []
+        self._toasts: list[dict] = []
         self._eat_pulse = 0.0
         self._prev_state = None
         self._fade = 0.0
+
+    def apply_profile(self, profile) -> None:
+        """Adopt the profile's selected skin and shake preference."""
+        self.skin = skin_by_key(profile.selected_skin)
+        self.camera.enabled = profile.settings.screen_shake
 
     # --- Effects lifecycle --------------------------------------------------
 
     def spawn_events(self, game: Game) -> None:
         """React to one tick's game events by spawning matching effects."""
+        for ach in game.new_achievements:
+            self._toasts.append({"title": "Achievement!", "name": ach.name,
+                                 "life": 3.2, "max": 3.2})
         head = self._cell_center(*game.snake.head)
         for event in game.events:
             if event is SoundEvent.EAT:
@@ -113,6 +124,9 @@ class Renderer:
             p["y"] -= 42 * dt
             p["life"] -= dt
         self._popups = [p for p in self._popups if p["life"] > 0]
+        for toast in self._toasts:
+            toast["life"] -= dt
+        self._toasts = [t for t in self._toasts if t["life"] > 0]
 
     # --- Frame --------------------------------------------------------------
 
@@ -127,6 +141,12 @@ class Renderer:
             self._draw_menu(game)
         elif game.state is GameState.MODE_SELECT:
             self._draw_mode_select(game)
+        elif game.state is GameState.SETTINGS:
+            self._draw_settings(game)
+        elif game.state is GameState.SKINS:
+            self._draw_skins(game)
+        elif game.state is GameState.STATS:
+            self._draw_stats(game)
         elif game.state is GameState.INFO:
             self._draw_info()
         else:
@@ -151,7 +171,26 @@ class Renderer:
             veil = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
             veil.fill((16, 20, 34, int(180 * self._fade)))
             self.screen.blit(veil, (0, 0))
+        self._draw_toasts()
         pygame.display.flip()
+
+    def _draw_toasts(self) -> None:
+        """Slide-in achievement toasts, top-right of the screen."""
+        for i, toast in enumerate(self._toasts):
+            appear = min(1.0, (toast["max"] - toast["life"]) * 4)
+            fade = min(1.0, toast["life"])
+            w, h = 240, 54
+            x = self.screen.get_width() - int(w * appear) - 10
+            y = 56 + i * (h + 8)
+            panel = pygame.Surface((w, h), pygame.SRCALPHA)
+            pygame.draw.rect(panel, (*self.theme.accent, int(240 * fade)),
+                             panel.get_rect(), border_radius=12)
+            title = self._font_subtitle.render(toast["title"], True, self.theme.text)
+            name = self._font_hud.render(toast["name"], True, self.theme.text_light)
+            panel.blit(title, (14, 6))
+            panel.blit(name, (14, 26))
+            panel.set_alpha(int(255 * fade))
+            self.screen.blit(panel, (x, y))
 
     # --- Layout helpers -----------------------------------------------------
 
@@ -368,6 +407,117 @@ class Renderer:
             self._font_subtitle, "Arrows to choose · Enter to start · Esc to go back",
             self.theme.text, self.theme.text_light, 2)
         self._blit_centered(hint, self.canvas.get_height() - 30)
+
+    def _draw_settings(self, game) -> None:
+        title = draw.outline_text(
+            self._font_title, "Settings", self.skin.light, self.skin.outline, 3)
+        self._blit_centered(title, 74)
+        top, row_h = 160, 74
+        panel_w = self.canvas.get_width() - 90
+        for i, (key, label) in enumerate(SETTING_FIELDS):
+            selected = i == game.settings_index
+            y = top + i * row_h
+            panel = pygame.Rect((self.canvas.get_width() - panel_w) // 2, y, panel_w, row_h - 16)
+            draw.rounded_shadow_panel(
+                self.canvas, panel, self.theme.accent if selected else self.theme.ui_panel,
+                self.theme.ui_panel_shadow, radius=14)
+            name = self._font_menu.render(
+                label, True, self.theme.text_light if selected else self.theme.text)
+            self.canvas.blit(name, (panel.x + 20, panel.centery - name.get_height() // 2))
+            value = getattr(game.profile.settings, key)
+            if key == "screen_shake":
+                text = "On" if value else "Off"
+                v = self._font_menu.render(text, True, self.theme.text_light if selected else self.theme.text)
+                self.canvas.blit(v, (panel.right - v.get_width() - 20,
+                                     panel.centery - v.get_height() // 2))
+            else:
+                self._volume_bar(panel, value)
+        hint = draw.outline_text(
+            self._font_subtitle, "Up/Down select · Left/Right change · Esc back",
+            self.theme.text, self.theme.text_light, 2)
+        self._blit_centered(hint, self.canvas.get_height() - 28)
+
+    def _volume_bar(self, panel: pygame.Rect, value: float) -> None:
+        bar = pygame.Rect(panel.right - 190, panel.centery - 9, 170, 18)
+        pygame.draw.rect(self.canvas, self.theme.ui_panel_shadow, bar, border_radius=9)
+        fill = bar.copy()
+        fill.width = max(9, int(bar.width * value))
+        pygame.draw.rect(self.canvas, self.skin.light, fill, border_radius=9)
+
+    def _draw_skins(self, game) -> None:
+        title = draw.outline_text(
+            self._font_title, "Skins", self.skin.light, self.skin.outline, 3)
+        self._blit_centered(title, 74)
+        cols = 3
+        cell_w, cell_h = 150, 150
+        gap = 20
+        grid_w = cols * cell_w + (cols - 1) * gap
+        x0 = (self.canvas.get_width() - grid_w) // 2
+        y0 = 150
+        for i, skin in enumerate(SKINS):
+            r, c = divmod(i, cols)
+            x = x0 + c * (cell_w + gap)
+            y = y0 + r * (cell_h + gap)
+            card = pygame.Rect(x, y, cell_w, cell_h)
+            unlocked = skin.key in game.profile.unlocked_skins
+            selected_cursor = i == game.skins_index
+            equipped = skin.key == game.profile.selected_skin
+            border = self.theme.accent if selected_cursor else self.theme.ui_panel_shadow
+            pygame.draw.rect(self.canvas, border, card.inflate(8, 8), border_radius=16)
+            pygame.draw.rect(self.canvas, self.theme.ui_panel, card, border_radius=14)
+            # Mini snake swatch.
+            centers = [(card.centerx - 24, card.centery - 6), (card.centerx, card.centery - 6),
+                       (card.centerx + 24, card.centery - 6)]
+            draw.snake(self.canvas, centers, 16, skin, self.theme, (1, 0), self._now())
+            name = self._font_subtitle.render(skin.name, True, self.theme.text)
+            self.canvas.blit(name, name.get_rect(center=(card.centerx, card.bottom - 24)))
+            if equipped:
+                tag = self._font_subtitle.render("Equipped", True, self.theme.accent)
+                self.canvas.blit(tag, tag.get_rect(center=(card.centerx, card.top + 16)))
+            if not unlocked:
+                veil = pygame.Surface(card.size, pygame.SRCALPHA)
+                veil.fill((30, 34, 48, 150))
+                lock = self._font_menu.render("Locked", True, self.theme.text_light)
+                veil.blit(lock, lock.get_rect(center=(cell_w // 2, cell_h // 2)))
+                self.canvas.blit(veil, card.topleft)
+        hint = draw.outline_text(
+            self._font_subtitle, "Arrows to move · Enter to equip · Esc back",
+            self.theme.text, self.theme.text_light, 2)
+        self._blit_centered(hint, self.canvas.get_height() - 28)
+
+    def _draw_stats(self, game) -> None:
+        title = draw.outline_text(
+            self._font_title, "Stats", self.skin.light, self.skin.outline, 3)
+        self._blit_centered(title, 64)
+        s = game.profile.stats
+        rows = [
+            ("Games played", s["games_played"]),
+            ("Food eaten", s["total_food"]),
+            ("Best length", s["best_length"]),
+            ("Power-ups grabbed", s["powerups_grabbed"]),
+            ("Total score", s["total_score"]),
+        ]
+        y = 128
+        for label, value in rows:
+            lab = self._font_hud.render(label, True, self.theme.text)
+            val = self._font_hud.render(str(value), True, self.theme.text_light)
+            self.canvas.blit(lab, (60, y))
+            self.canvas.blit(val, (self.canvas.get_width() - 60 - val.get_width(), y))
+            y += 34
+        head = draw.outline_text(
+            self._font_menu, "Achievements", self.skin.light, self.skin.outline, 2)
+        self.canvas.blit(head, (60, y + 6))
+        y += 52
+        for ach in ACHIEVEMENTS:
+            got = ach.id in game.profile.achievements
+            color = self.theme.text if got else self.theme.text_dim
+            mark = "*" if got else "-"
+            line = self._font_subtitle.render(f"{mark} {ach.name} — {ach.description}", True, color)
+            self.canvas.blit(line, (60, y))
+            y += 26
+        hint = draw.outline_text(
+            self._font_subtitle, "Esc to go back", self.theme.text, self.theme.text_light, 2)
+        self._blit_centered(hint, self.canvas.get_height() - 24)
 
     def _draw_info(self) -> None:
         title = draw.outline_text(

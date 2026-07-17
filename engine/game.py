@@ -13,8 +13,12 @@ from config import (
     GRID_HEIGHT,
     GRID_WIDTH,
     HIGH_SCORE_FILE,
+    MENU_INFO,
     MENU_OPTIONS,
-    MENU_START,
+    MENU_PLAY,
+    MENU_SETTINGS,
+    MENU_SKINS,
+    MENU_STATS,
     POINTS_PER_FOOD,
     POWERUP_LIFETIME,
     POWERUP_SPAWN_TICKS,
@@ -22,12 +26,14 @@ from config import (
     GameState,
     SoundEvent,
 )
+from engine.achievements import Context, newly_unlocked
 from engine.food import Food
 from engine.levels import LEVELS, Level, build_portal_map
 from engine.modes import DEFAULT_MODE, MODES, Mode
 from engine.powerups import SHRINK_AMOUNT, SPECS, PowerUpKind
+from engine.profile import SETTING_FIELDS, Profile
 from engine.snake import Snake
-from storage import load_high_score, save_high_score
+from fx.theme import SKINS  # pure data (no pygame); safe for the core
 
 Position = tuple[int, int]
 
@@ -41,21 +47,29 @@ class Game:
         rng: random.Random | None = None,
         high_score_path: str = HIGH_SCORE_FILE,
         mode: Mode = DEFAULT_MODE,
+        profile: Profile | None = None,
     ) -> None:
         """Set up a fresh game.
 
         `rng` and `high_score_path` are injectable so tests stay deterministic
-        and never touch the real save file. `mode` selects the ruleset;
-        Adventure by default.
+        and never touch the real save file (the path holds the JSON profile).
+        `mode` selects the ruleset; Adventure by default.
         """
         self.grid_size = grid_size
         self._rng = rng if rng is not None else random.Random()
-        self._high_score_path = high_score_path
-        self.high_score = load_high_score(high_score_path)
+        self._profile_path = high_score_path
+        self.profile = profile if profile is not None else Profile.load(
+            high_score_path, legacy_high_score_path=high_score_path
+        )
         self.mode = mode
+        self.high_score = self.profile.best(mode.key)
         self.menu_index = 0
         self.mode_index = 0
+        self.settings_index = 0
+        self.skins_index = 0
         self.events: list[SoundEvent] = []  # sound events emitted this tick
+        self.new_achievements: list = []  # earned this tick (for toasts)
+        self.powerups_grabbed = 0
         self._new_round()
         self.state = GameState.MENU
 
@@ -63,6 +77,8 @@ class Game:
         """Set up a fresh round for the current mode, without changing state."""
         self.score = 0
         self.ticks = 0
+        self.powerups_grabbed = 0
+        self.new_achievements = []
         if self.mode.uses_levels:
             self._load_level(0)
         else:
@@ -158,6 +174,7 @@ class Game:
     def start_mode(self, mode: Mode) -> None:
         """Switch to `mode` and begin a fresh round in play."""
         self.mode = mode
+        self.high_score = self.profile.best(mode.key)
         self.reset()
 
     def advance_level(self) -> None:
@@ -174,13 +191,19 @@ class Game:
         self.menu_index = max(0, min(len(MENU_OPTIONS) - 1, self.menu_index + delta))
 
     def menu_select(self) -> None:
-        """Activate the highlighted menu option."""
+        """Activate the highlighted menu option, opening its screen."""
         if self.state is not GameState.MENU:
             return
-        if MENU_OPTIONS[self.menu_index] == MENU_START:
-            self.state = GameState.MODE_SELECT
-        else:
-            self.state = GameState.INFO
+        target = {
+            MENU_PLAY: GameState.MODE_SELECT,
+            MENU_SKINS: GameState.SKINS,
+            MENU_SETTINGS: GameState.SETTINGS,
+            MENU_STATS: GameState.STATS,
+            MENU_INFO: GameState.INFO,
+        }[MENU_OPTIONS[self.menu_index]]
+        if target is GameState.SKINS:
+            self._sync_skin_cursor()
+        self.state = target
 
     def mode_menu_move(self, delta: int) -> None:
         """Move the mode-select cursor, clamped to the available modes."""
@@ -194,9 +217,58 @@ class Game:
             self.start_mode(MODES[self.mode_index])
 
     def back_to_menu(self) -> None:
-        """Return to the main menu from the info or mode-select screen."""
-        if self.state in (GameState.INFO, GameState.MODE_SELECT):
+        """Return to the main menu from any secondary screen."""
+        if self.state in (
+            GameState.INFO, GameState.MODE_SELECT, GameState.SETTINGS,
+            GameState.SKINS, GameState.STATS,
+        ):
             self.state = GameState.MENU
+
+    # --- Settings screen ----------------------------------------------------
+
+    def settings_move(self, delta: int) -> None:
+        """Move the settings row cursor."""
+        if self.state is not GameState.SETTINGS:
+            return
+        self.settings_index = max(0, min(len(SETTING_FIELDS) - 1, self.settings_index + delta))
+
+    def settings_adjust(self, delta: int) -> None:
+        """Change the selected setting; saves the profile."""
+        if self.state is not GameState.SETTINGS:
+            return
+        key, _label = SETTING_FIELDS[self.settings_index]
+        settings = self.profile.settings
+        if key == "screen_shake":
+            settings.screen_shake = not settings.screen_shake
+        else:
+            value = getattr(settings, key) + delta * 0.1
+            setattr(settings, key, max(0.0, min(1.0, round(value, 2))))
+        self.profile.save(self._profile_path)
+
+    # --- Skins screen -------------------------------------------------------
+
+    def _sync_skin_cursor(self) -> None:
+        """Point the skin cursor at the currently selected skin."""
+        keys = [s.key for s in SKINS]
+        self.skins_index = keys.index(self.profile.selected_skin) if (
+            self.profile.selected_skin in keys) else 0
+
+    def skins_move(self, delta: int) -> None:
+        """Move the skin cursor."""
+        if self.state is not GameState.SKINS:
+            return
+        self.skins_index = max(0, min(len(SKINS) - 1, self.skins_index + delta))
+
+    def skins_select(self) -> bool:
+        """Select the highlighted skin if unlocked. Returns True on success."""
+        if self.state is not GameState.SKINS:
+            return False
+        skin = SKINS[self.skins_index]
+        if skin.key not in self.profile.unlocked_skins:
+            return False
+        self.profile.selected_skin = skin.key
+        self.profile.save(self._profile_path)
+        return True
 
     def set_direction(self, direction: Direction) -> None:
         """Steer the snake, ignored unless the game is running."""
@@ -213,6 +285,7 @@ class Game:
     def update(self) -> None:
         """Advance the game by one tick, collecting any sound events."""
         self.events = []
+        self.new_achievements = []
         if self.state is not GameState.RUNNING:
             return
 
@@ -220,7 +293,7 @@ class Game:
         if self.time_left is not None and self.time_left <= 0:
             self.state = GameState.GAME_OVER
             self.events.append(SoundEvent.GAME_OVER)
-            self._record_high_score()
+            self._finalize(won=False)
             return
 
         self._tick_effects()
@@ -238,7 +311,7 @@ class Game:
             if hit_wall or hit_self:
                 self.state = GameState.GAME_OVER
                 self.events.append(SoundEvent.GAME_OVER)
-                self._record_high_score()
+                self._finalize(won=False)
                 return
 
         if self.snake.head == self.food.position:
@@ -322,6 +395,7 @@ class Game:
     def _activate_powerup(self, kind: PowerUpKind) -> None:
         """Apply a picked-up power-up's effect."""
         self.events.append(SoundEvent.POWERUP)
+        self.powerups_grabbed += 1
         spec = SPECS[kind]
         if kind is PowerUpKind.SHRINK:
             keep = max(2, self.snake.length - SHRINK_AMOUNT)
@@ -340,13 +414,14 @@ class Game:
 
         # Adventure clears the level once its target score is reached.
         if self.mode.uses_levels and self.score >= self.level.advance_score:
-            self._record_high_score()
             if self.is_final_level:
                 self.state = GameState.WON
                 self.events.append(SoundEvent.WIN)
+                self._finalize(won=True)
             else:
                 self.state = GameState.LEVEL_CLEARED
                 self.events.append(SoundEvent.LEVEL_CLEARED)
+                self._record_high_score()
             return
 
         # In power-up modes, every few foods drops a timed bonus.
@@ -360,10 +435,27 @@ class Game:
             # Board full: a win in every mode.
             self.state = GameState.WON
             self.events.append(SoundEvent.WIN)
-            self._record_high_score()
+            self._finalize(won=True)
 
     def _record_high_score(self) -> None:
-        """Persist the score if it beats the stored best."""
+        """Persist the score to the profile if it beats the mode's best."""
         if self.score > self.high_score:
             self.high_score = self.score
-            save_high_score(self._high_score_path, self.high_score)
+            self.profile.high_scores[self.mode.key] = self.high_score
+            self.profile.save(self._profile_path)
+
+    def _finalize(self, won: bool) -> None:
+        """Record a finished game: high score, lifetime stats, achievements."""
+        self._record_high_score()
+        self.profile.record_game(
+            self.mode.key, self.score, self.snake.length,
+            self.foods_eaten, self.powerups_grabbed,
+        )
+        context = Context(
+            self.profile, self.mode.key, self.score, self.snake.length,
+            self.ticks / self.mode.base_speed, won,
+        )
+        self.new_achievements = newly_unlocked(context)
+        if self.new_achievements:
+            self.events.append(SoundEvent.ACHIEVEMENT)
+        self.profile.save(self._profile_path)

@@ -18,6 +18,7 @@ class Camera:
         self.trauma = 0.0
         self.max_offset = max_offset
         self.decay = decay
+        self.enabled = True  # honours the player's screen-shake setting
         self._flashes: list[list] = []  # [color, remaining, duration, peak_alpha]
 
     def shake(self, amount: float) -> None:
@@ -36,9 +37,9 @@ class Camera:
         self._flashes = [f for f in self._flashes if f[1] > 0]
 
     def offset(self) -> tuple[int, int]:
-        """Current shake offset in pixels (0,0 when calm)."""
+        """Current shake offset in pixels (0,0 when calm or disabled)."""
         amount = self.trauma * self.trauma
-        if amount <= 0:
+        if amount <= 0 or not self.enabled:
             return (0, 0)
         return (
             int(random.uniform(-1, 1) * self.max_offset * amount),

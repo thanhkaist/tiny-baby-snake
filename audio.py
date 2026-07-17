@@ -43,6 +43,18 @@ class SoundManager:
         if os.path.exists(music):
             self._music_path = music
 
+    def apply_settings(self, settings) -> None:
+        """Set music and SFX volumes from the profile's settings."""
+        if not self.available:
+            return
+        master = settings.master_volume
+        for sound in self._sounds.values():
+            sound.set_volume(master * settings.sfx_volume)
+        try:
+            pygame.mixer.music.set_volume(master * settings.music_volume)
+        except pygame.error:
+            pass
+
     def play(self, event: SoundEvent) -> None:
         """Play one sound effect, unless muted or unavailable."""
         if not self.available or self.muted:

@@ -22,7 +22,7 @@ def test_menu_navigation_is_clamped(tmp_path) -> None:
     assert game.menu_index == 0
     game.menu_move(1)
     assert game.menu_index == 1
-    game.menu_move(1)  # can't go past the last option
+    game.menu_move(len(MENU_OPTIONS) + 5)  # can't go past the last option
     assert game.menu_index == len(MENU_OPTIONS) - 1
 
 
@@ -39,7 +39,7 @@ def test_selecting_start_opens_mode_select(tmp_path) -> None:
 
 def test_selecting_info_and_returning(tmp_path) -> None:
     game = _game(tmp_path)
-    game.menu_index = 1  # "How to Play"
+    game.menu_index = MENU_OPTIONS.index("How to Play")
     game.menu_select()
     assert game.state is GameState.INFO
     game.back_to_menu()

@@ -20,9 +20,10 @@ MAX_STEPS_PER_FRAME = 5  # clamp so a stall can't spiral into a burst of updates
 # Snake
 INITIAL_SNAKE_LENGTH = 3
 
-# Scoring
+# Scoring & persistence
 POINTS_PER_FOOD = 10
-HIGH_SCORE_FILE = "highscore.txt"
+HIGH_SCORE_FILE = "highscore.txt"  # legacy; migrated into the profile
+PROFILE_FILE = "profile.json"
 
 # Power-ups & bonus food (endless modes). Timings are in logic ticks.
 BONUS_EVERY = 4  # spawn a bonus after this many normal foods
@@ -80,6 +81,9 @@ class GameState(Enum):
 
     MENU = "menu"
     MODE_SELECT = "mode_select"
+    SETTINGS = "settings"
+    SKINS = "skins"
+    STATS = "stats"
     INFO = "info"
     RUNNING = "running"
     PAUSED = "paused"
@@ -111,6 +115,7 @@ class SoundEvent(Enum):
     LEVEL_CLEARED = "level_cleared"
     GAME_OVER = "game_over"
     WIN = "win"
+    ACHIEVEMENT = "achievement"
 
 
 # Audio
@@ -119,10 +124,13 @@ MUSIC_VOLUME = 0.35
 SFX_VOLUME = 0.8
 
 
-# Main menu
-MENU_START = "Start Game"
+# Main menu — labels map to the state each opens (see Game.menu_select).
+MENU_PLAY = "Play"
+MENU_SKINS = "Skins"
+MENU_SETTINGS = "Settings"
+MENU_STATS = "Stats"
 MENU_INFO = "How to Play"
-MENU_OPTIONS = (MENU_START, MENU_INFO)
+MENU_OPTIONS = (MENU_PLAY, MENU_SKINS, MENU_SETTINGS, MENU_STATS, MENU_INFO)
 
 # How-to-play screen: each line is one row of body text.
 INFO_LINES = (
