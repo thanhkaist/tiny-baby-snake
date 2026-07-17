@@ -104,9 +104,12 @@ def main() -> None:
         while accumulator >= step and steps < MAX_STEPS_PER_FRAME:
             game.update()
             audio.play_events(game.events)
+            renderer.spawn_events(game)  # particles/shake/pop-ups for this tick
             accumulator -= step
             steps += 1
         accumulator = min(accumulator, step)  # drop any backlog past the clamp
+
+        renderer.update(dt)  # advance effect systems once per frame
 
         # Fraction toward the next tick, used to interpolate the snake.
         alpha = accumulator / step if game.state is GameState.RUNNING else 1.0
