@@ -30,9 +30,11 @@ def _apply_intent(intent: tuple, game: Game, audio: SoundManager) -> bool:
     """
     action, payload = intent
 
+    # Esc backs out of these screens to the main menu; from the menu itself
+    # (or during play) it quits the game.
     back_states = (
         GameState.INFO, GameState.MODE_SELECT, GameState.SETTINGS,
-        GameState.SKINS, GameState.STATS,
+        GameState.SKINS, GameState.STATS, GameState.GAME_OVER, GameState.WON,
     )
 
     if action is Intent.QUIT:

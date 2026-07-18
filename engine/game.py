@@ -217,10 +217,10 @@ class Game:
             self.start_mode(MODES[self.mode_index])
 
     def back_to_menu(self) -> None:
-        """Return to the main menu from any secondary screen."""
+        """Return to the main menu from any secondary or end screen."""
         if self.state in (
             GameState.INFO, GameState.MODE_SELECT, GameState.SETTINGS,
-            GameState.SKINS, GameState.STATS,
+            GameState.SKINS, GameState.STATS, GameState.GAME_OVER, GameState.WON,
         ):
             self.state = GameState.MENU
 

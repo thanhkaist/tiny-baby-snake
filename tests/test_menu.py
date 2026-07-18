@@ -46,6 +46,15 @@ def test_selecting_info_and_returning(tmp_path) -> None:
     assert game.state is GameState.MENU
 
 
+def test_back_to_menu_from_end_screens(tmp_path) -> None:
+    # Esc on the game-over / win screen returns to the main menu.
+    for end_state in (GameState.GAME_OVER, GameState.WON):
+        game = _game(tmp_path)
+        game.state = end_state
+        game.back_to_menu()
+        assert game.state is GameState.MENU
+
+
 def test_update_is_noop_on_menu_and_info(tmp_path) -> None:
     game = _game(tmp_path)
     before = list(game.snake.body)
