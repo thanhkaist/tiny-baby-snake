@@ -77,14 +77,28 @@ def snake(
     heading: tuple[int, int],
     t: float,
     head_scale: float = 1.0,
+    max_link: float | None = None,
 ) -> None:
     """Draw a rounded, gradient snake with a googly-eyed head.
 
     `centers` are pixel centres head-first; `heading` is the head's (dx, dy).
-    `head_scale` lets callers squash-and-stretch the head (juice).
+    `head_scale` lets callers squash-and-stretch the head (juice). `max_link`
+    is the largest pixel gap that still joins two segments — when the snake
+    wraps a screen edge (or teleports through a portal) neighbouring segments
+    land far apart, so the joint is skipped to avoid a bar streaking the board.
     """
     if not centers:
         return
+
+    def linked(i: int) -> bool:
+        # Whether segment i connects to i+1 (they are grid-adjacent on screen).
+        if i >= len(centers) - 1:
+            return False
+        if max_link is None:
+            return True
+        nx, ny = centers[i + 1]
+        cx, cy = centers[i]
+        return math.hypot(nx - cx, ny - cy) <= max_link
 
     def stroke(rad: int, colorer) -> None:
         # Draw tail-to-head so the head sits on top; connect with thick joints.
@@ -92,7 +106,7 @@ def snake(
             cx, cy = centers[i]
             frac = i / max(1, len(centers) - 1)
             color = colorer(frac)
-            if i < len(centers) - 1:
+            if linked(i):
                 nx, ny = centers[i + 1]
                 pygame.draw.line(surface, color, (cx, cy), (nx, ny), rad * 2)
             _aa_circle(surface, cx, cy, rad, color)

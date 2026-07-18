@@ -1,7 +1,11 @@
 """Tests for the particle system and camera (pure update logic)."""
 
+import pygame
+
+from fx import draw
 from fx.camera import Camera
 from fx.particles import ParticleSystem
+from fx.theme import DEFAULT_THEME, SKINS
 
 
 def test_burst_emits_and_expires() -> None:
@@ -47,3 +51,29 @@ def test_camera_shake_is_clamped() -> None:
     cam.shake(0.8)
     cam.shake(0.8)
     assert cam.trauma == 1.0  # can't exceed a full shake
+
+
+def _draw_split_snake(max_link):
+    """Draw a snake whose two segments sit on opposite edges (a wrap seam)."""
+    surface = pygame.Surface((400, 400))
+    surface.fill((0, 0, 0))
+    centers = [(200, 20), (200, 380)]  # far apart, as when wrapping an edge
+    draw.snake(
+        surface, centers, radius=10, skin=SKINS[0], theme=DEFAULT_THEME,
+        heading=(0, -1), t=0.0, max_link=max_link,
+    )
+    return surface
+
+
+def test_wrapping_snake_does_not_streak_across_board() -> None:
+    # With a max_link smaller than the gap, the joint is skipped: the mid-board
+    # band between the two pieces must stay background (no bar). Regression for
+    # the "long green bar" seen when the snake crossed a screen edge.
+    surface = _draw_split_snake(max_link=30.0)
+    assert surface.get_at((200, 200))[:3] == (0, 0, 0)
+
+
+def test_snake_links_close_segments() -> None:
+    # Without a max_link cap (e.g. the menu preview), segments stay connected.
+    surface = _draw_split_snake(max_link=None)
+    assert surface.get_at((200, 200))[:3] != (0, 0, 0)

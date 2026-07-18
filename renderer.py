@@ -283,6 +283,7 @@ class Renderer:
             self.canvas, centers, self._radius, self.skin, self.theme,
             game.snake.direction.value, self._now(),
             head_scale=1.0 + 0.45 * self._eat_pulse,
+            max_link=CELL_SIZE * 1.5,
         )
 
     # --- HUD & overlays -----------------------------------------------------
@@ -335,8 +336,8 @@ class Renderer:
             GameState.PAUSED: ("Paused", "Press P or Space to resume"),
             GameState.LEVEL_CLEARED: (
                 f"Level {game.level_index + 1} Complete!", "Press Enter for the next level"),
-            GameState.GAME_OVER: ("Game Over", "Press Enter or R to play again"),
-            GameState.WON: ("You Win!", "Press Enter or R to play again"),
+            GameState.GAME_OVER: ("Game Over", "Enter or R to play again · Esc for menu"),
+            GameState.WON: ("You Win!", "Enter or R to play again · Esc for menu"),
         }
         if game.state not in messages:
             return
