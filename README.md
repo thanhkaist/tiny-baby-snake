@@ -97,6 +97,11 @@ pyinstaller tiny-baby-snake.spec --noconfirm
 ./dist/tiny-baby-snake
 ```
 
+**Windows:** every push builds a standalone `tiny-baby-snake.exe` in CI — grab
+it from the **Actions** tab → latest run → *Artifacts* → `tiny-baby-snake-windows`
+(no Python install needed to run it). Tagged releases also attach the `.exe`
+automatically.
+
 ## Architecture
 
 The game logic core imports **no pygame**, so it runs and unit-tests fully

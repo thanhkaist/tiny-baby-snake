@@ -27,3 +27,37 @@ jobs:
           SDL_VIDEODRIVER: dummy
           SDL_AUDIODRIVER: dummy
         run: pytest -q
+
+  build-windows:
+    name: Build standalone Windows executable
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt "pyinstaller>=6"
+      - name: Build one-file executable
+        run: pyinstaller tiny-baby-snake.spec --noconfirm
+      - name: Smoke-test the executable exists
+        run: |
+          if (-not (Test-Path "dist/tiny-baby-snake.exe")) {
+            throw "dist/tiny-baby-snake.exe was not produced"
+          }
+          Get-Item "dist/tiny-baby-snake.exe" | Format-List Name, Length
+      - name: Upload Windows executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: tiny-baby-snake-windows
+          path: dist/tiny-baby-snake.exe
+          if-no-files-found: error
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/tiny-baby-snake.exe
